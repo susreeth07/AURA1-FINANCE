@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Mail, Lock, Shield, ArrowRight, User, Eye, EyeOff, Sparkles, Send } from 'lucide-react';
+import { authService } from '../../services/authService';
 
 interface AuthProps {
   onSuccess: (email: string) => void;
@@ -13,13 +14,21 @@ export const LoginView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setErrorMsg('');
+    try {
+      await authService.signIn(email, password);
       onSuccess(email);
-    }, 800);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Verification failed. Please check credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -111,13 +120,21 @@ export const SignupView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
   const [agree, setAgree] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setErrorMsg('');
+    try {
+      await authService.signUp(email, password, name);
       onSuccess(email || 'pidaparthibharath@karunya.edu.in');
-    }, 800);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to deploy account node.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -216,11 +233,26 @@ export const SignupView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
 export const ForgotPasswordView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSent(true);
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      await authService.resetPasswordRequest(email);
+      setSent(true);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Failed to transmit recovery node.');
+    } finally {
+      setLoading(false);
+    }
   };
+  
+  // Update view return with error messages if applicable
 
   return (
     <div className="w-full max-w-md p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">

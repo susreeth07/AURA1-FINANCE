@@ -11,6 +11,8 @@ import { ThemeProvider, useTheme } from './components/ThemeContext';
 import { CustomCursor } from './components/CustomCursor';
 import { LandingPage } from './components/LandingPage';
 import { LoginView, SignupView, ForgotPasswordView } from './components/views/AuthViews';
+import { authService } from './services/authService';
+import { supabase } from './lib/supabaseClient';
 import { FinancialProfileSetupView } from './components/views/FinancialProfileSetupView';
 import { DashboardView } from './components/views/DashboardView';
 import { IncomePanel, ExpensePanel, BudgetPanel } from './components/views/IncomeExpenseBudgetViews';
@@ -106,6 +108,36 @@ function MainApp() {
     localStorage.setItem('aura-notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  // Supabase Session Listener
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const session = await authService.getSession();
+        if (session?.user) {
+          setIsLoggedIn(true);
+          setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
+        }
+      } catch (err) {
+        console.error("Session check failed:", err);
+      }
+    };
+    checkSession();
+
+    const subscription = authService.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setIsLoggedIn(true);
+        setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
+      } else if (event === 'SIGNED_OUT') {
+        setIsLoggedIn(false);
+        setCurrentView('landing');
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, []);
+
   // Initial Boot Animation Simulator
   useEffect(() => {
     const texts = [
@@ -135,17 +167,33 @@ function MainApp() {
   }, []);
 
   // Handle Login success
-  const handleAuthSuccess = (email: string) => {
+  const handleAuthSuccess = async (email: string) => {
     setIsLoggedIn(true);
     setUserProfile(prev => ({ ...prev, email }));
     
-    // Check onboarding setup
-    if (!userProfile.hasSetupProfile) {
+    try {
+      const userRes = await supabase.auth.getUser();
+      const userId = userRes.data.user?.id;
+      if (!userId) {
+        setCurrentView('setup');
+        return;
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('has_setup_profile')
+        .eq('user_id', userId)
+        .maybeSingle();
+      
+      if (profile && profile.has_setup_profile) {
+        setCurrentView('dashboard');
+        setTimeout(() => setShowSalaryPopup(true), 1500);
+      } else {
+        setCurrentView('setup');
+      }
+    } catch (err) {
+      console.error(err);
       setCurrentView('setup');
-    } else {
-      setCurrentView('dashboard');
-      // Show first login of month warning popup
-      setTimeout(() => setShowSalaryPopup(true), 1500);
     }
   };
 
@@ -156,7 +204,12 @@ function MainApp() {
   };
 
   // Sign out triggers
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+    } catch (err) {
+      console.error("Failed to sign out:", err);
+    }
     setIsLoggedIn(false);
     setCurrentView('landing');
   };
