@@ -40,73 +40,202 @@ function MainApp() {
 
   // 3. Authenticated Identity States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile>(() => {
-    const saved = localStorage.getItem('aura-profile');
-    return saved ? JSON.parse(saved) : INITIAL_USER_PROFILE;
-  });
+  const [dbLoading, setDbLoading] = useState(false);
+  const [dbError, setDbError] = useState<string | null>(null);
 
-  const [incomes, setIncomes] = useState<IncomeItem[]>(() => {
-    const saved = localStorage.getItem('aura-incomes');
-    return saved ? JSON.parse(saved) : INITIAL_INCOMES;
-  });
-
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
-    const saved = localStorage.getItem('aura-expenses');
-    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
-  });
-
-  const [budgets, setBudgets] = useState<BudgetItem[]>(() => {
-    const saved = localStorage.getItem('aura-budgets');
-    return saved ? JSON.parse(saved) : INITIAL_BUDGETS;
-  });
-
-  const [goals, setGoals] = useState<SavingsGoal[]>(() => {
-    const saved = localStorage.getItem('aura-goals');
-    return saved ? JSON.parse(saved) : INITIAL_SAVINGS_GOALS;
-  });
-
-  const [reminders, setReminders] = useState<BillReminder[]>(() => {
-    const saved = localStorage.getItem('aura-reminders');
-    return saved ? JSON.parse(saved) : INITIAL_BILL_REMINDERS;
-  });
-
-  const [notifications, setNotifications] = useState<SystemNotification[]>(() => {
-    const saved = localStorage.getItem('aura-notifications');
-    return saved ? JSON.parse(saved) : INITIAL_NOTIFICATIONS;
-  });
+  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+  const [incomes, setIncomes] = useState<IncomeItem[]>([]);
+  const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
+  const [budgets, setBudgets] = useState<BudgetItem[]>([]);
+  const [goals, setGoals] = useState<SavingsGoal[]>([]);
+  const [reminders, setReminders] = useState<BillReminder[]>([]);
+  const [notifications, setNotifications] = useState<SystemNotification[]>([]);
 
   // 4. Modal Popups
   const [showSalaryPopup, setShowSalaryPopup] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Sync to Storage
-  useEffect(() => {
-    localStorage.setItem('aura-profile', JSON.stringify(userProfile));
-  }, [userProfile]);
+  // Asynchronous Database Loader
+  const loadAllUserData = async () => {
+    setDbLoading(true);
+    setDbError(null);
+    try {
+      const userRes = await supabase.auth.getUser();
+      const userId = userRes.data.user?.id;
+      if (!userId) {
+        setDbError("No active user session detected.");
+        return;
+      }
 
-  useEffect(() => {
-    localStorage.setItem('aura-incomes', JSON.stringify(incomes));
-  }, [incomes]);
+      // 1. Fetch Profile
+      const { data: profile, error: profileErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-  useEffect(() => {
-    localStorage.setItem('aura-expenses', JSON.stringify(expenses));
-  }, [expenses]);
+      if (profileErr) throw profileErr;
+      if (profile) {
+        setUserProfile({
+          name: profile.name,
+          email: profile.email,
+          avatar: profile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200',
+          monthlySalary: Number(profile.monthly_salary),
+          additionalIncome: Number(profile.additional_income),
+          currentSavings: Number(profile.current_savings),
+          rent: Number(profile.rent),
+          fixedExpenses: Number(profile.fixed_expenses),
+          monthlyBills: Number(profile.monthly_bills),
+          emiLoans: Number(profile.emi_loans),
+          savingsGoalPercentage: profile.savings_goal_percentage,
+          hasSetupProfile: profile.has_setup_profile,
+          salaryHistory: profile.salary_history || []
+        });
+      }
 
-  useEffect(() => {
-    localStorage.setItem('aura-budgets', JSON.stringify(budgets));
-  }, [budgets]);
+      // 2. Fetch Incomes
+      const { data: incomesData, error: incomesErr } = await supabase
+        .from('incomes')
+        .select('*, categories(name)')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
 
-  useEffect(() => {
-    localStorage.setItem('aura-goals', JSON.stringify(goals));
-  }, [goals]);
+      if (incomesErr) throw incomesErr;
+      if (incomesData) {
+        setIncomes(incomesData.map(i => ({
+          id: i.id,
+          source: i.source,
+          amount: Number(i.amount),
+          category: (i.categories as any)?.name || 'Other',
+          date: i.date,
+          description: i.description || '',
+          isRecurring: i.is_recurring
+        })));
+      }
 
-  useEffect(() => {
-    localStorage.setItem('aura-reminders', JSON.stringify(reminders));
-  }, [reminders]);
+      // 3. Fetch Expenses
+      const { data: expensesData, error: expensesErr } = await supabase
+        .from('expenses')
+        .select('*, categories(name)')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
 
+      if (expensesErr) throw expensesErr;
+      if (expensesData) {
+        setExpenses(expensesData.map(e => ({
+          id: e.id,
+          merchant: e.merchant,
+          amount: Number(e.amount),
+          category: (e.categories as any)?.name || 'Other',
+          date: e.date,
+          description: e.description || '',
+          isRecurring: e.is_recurring,
+          frequency: e.frequency as any
+        })));
+      }
+
+      // 4. Fetch Budgets
+      const { data: budgetsData, error: budgetsErr } = await supabase
+        .from('budgets')
+        .select('*, categories(name, color)')
+        .eq('user_id', userId);
+
+      if (budgetsErr) throw budgetsErr;
+      if (budgetsData) {
+        setBudgets(budgetsData.map(b => ({
+          id: b.id,
+          category: (b.categories as any)?.name || 'Other',
+          limit: Number(b.limit_amount),
+          spent: 0,
+          color: (b.categories as any)?.color || '#6366f1',
+          alertThreshold: b.alert_threshold
+        })));
+      }
+
+      // 5. Fetch Savings Goals
+      const { data: goalsData, error: goalsErr } = await supabase
+        .from('savings_goals')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (goalsErr) throw goalsErr;
+      if (goalsData) {
+        setGoals(goalsData.map(g => ({
+          id: g.id,
+          name: g.name,
+          targetAmount: Number(g.target_amount),
+          currentAmount: Number(g.current_amount),
+          category: g.category as any,
+          targetDate: g.target_date,
+          icon: g.icon
+        })));
+      }
+
+      // 6. Fetch Bill Reminders
+      const { data: remindersData, error: remindersErr } = await supabase
+        .from('bill_reminders')
+        .select('*, categories(name)')
+        .eq('user_id', userId);
+
+      if (remindersErr) throw remindersErr;
+      if (remindersData) {
+        setReminders(remindersData.map(r => ({
+          id: r.id,
+          title: r.title,
+          amount: Number(r.amount),
+          dueDate: r.due_date,
+          category: (r.categories as any)?.name || 'Other',
+          isPaid: r.is_paid
+        })));
+      }
+
+      // 7. Fetch Notifications
+      const { data: notificationsData, error: notificationsErr } = await supabase
+        .from('system_notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (notificationsErr) throw notificationsErr;
+      if (notificationsData) {
+        setNotifications(notificationsData.map(n => ({
+          id: n.id,
+          type: n.type as any,
+          title: n.title,
+          message: n.message,
+          date: n.created_at,
+          isRead: n.is_read
+        })));
+      }
+
+    } catch (err: any) {
+      console.error("Database integration load failure:", err);
+      // Map error types
+      if (err.message && (err.message.includes('JWT') || err.message.includes('permission') || err.status === 401 || err.status === 403)) {
+        setDbError("Access Denied: Insufficient database permissions.");
+      } else {
+        setDbError("Database connection unavailable. Please check your credentials and network.");
+      }
+    } finally {
+      setDbLoading(false);
+    }
+  };
+
+  // Sync session loading trigger
   useEffect(() => {
-    localStorage.setItem('aura-notifications', JSON.stringify(notifications));
-  }, [notifications]);
+    if (isLoggedIn) {
+      loadAllUserData();
+    } else {
+      setIncomes([]);
+      setExpenses([]);
+      setBudgets([]);
+      setGoals([]);
+      setReminders([]);
+      setNotifications([]);
+      setDbError(null);
+    }
+  }, [isLoggedIn]);
 
   // Supabase Session Listener
   useEffect(() => {
