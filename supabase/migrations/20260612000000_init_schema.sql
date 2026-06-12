@@ -37,7 +37,19 @@ CREATE TABLE public.profiles (
 );
 
 -- ==========================================
--- 3. INCOMES TABLE (Revenue Inflows)
+-- 3. USER SETTINGS TABLE (App Customizations)
+-- ==========================================
+CREATE TABLE public.user_settings (
+    user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    theme VARCHAR(10) NOT NULL DEFAULT 'dark' CHECK (theme IN ('light', 'dark')),
+    strict_lock BOOLEAN NOT NULL DEFAULT TRUE,
+    sound_effects BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- 4. INCOMES TABLE (Revenue Inflows)
 -- ==========================================
 CREATE TABLE public.incomes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -52,7 +64,7 @@ CREATE TABLE public.incomes (
 );
 
 -- ==========================================
--- 4. EXPENSES TABLE (Outward Debits)
+-- 5. EXPENSES TABLE (Outward Debits)
 -- ==========================================
 CREATE TABLE public.expenses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -68,7 +80,7 @@ CREATE TABLE public.expenses (
 );
 
 -- ==========================================
--- 5. BUDGETS TABLE (Category Caps)
+-- 6. BUDGETS TABLE (Category Caps)
 -- ==========================================
 CREATE TABLE public.budgets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -81,7 +93,7 @@ CREATE TABLE public.budgets (
 );
 
 -- ==========================================
--- 6. SAVINGS GOALS TABLE (Milestones)
+-- 7. SAVINGS GOALS TABLE (Milestones)
 -- ==========================================
 CREATE TABLE public.savings_goals (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,7 +109,18 @@ CREATE TABLE public.savings_goals (
 );
 
 -- ==========================================
--- 7. BILL REMINDERS TABLE (Scheduled Invoices)
+-- 8. SAVINGS GOALS TRANSACTIONS TABLE (Funding Audit)
+-- ==========================================
+CREATE TABLE public.goal_transactions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    goal_id UUID NOT NULL REFERENCES public.savings_goals(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    amount NUMERIC(12, 2) NOT NULL CHECK (amount > 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ==========================================
+-- 9. BILL REMINDERS TABLE (Scheduled Invoices)
 -- ==========================================
 CREATE TABLE public.bill_reminders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -111,7 +134,7 @@ CREATE TABLE public.bill_reminders (
 );
 
 -- ==========================================
--- 8. SYSTEM NOTIFICATIONS TABLE (Alert flags)
+-- 10. SYSTEM NOTIFICATIONS TABLE (Alert flags)
 -- ==========================================
 CREATE TABLE public.system_notifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -124,7 +147,7 @@ CREATE TABLE public.system_notifications (
 );
 
 -- ==========================================
--- 9. CHAT MESSAGES TABLE (AI Logs)
+-- 11. CHAT MESSAGES TABLE (AI Logs)
 -- ==========================================
 CREATE TABLE public.chat_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -136,7 +159,7 @@ CREATE TABLE public.chat_messages (
 );
 
 -- ==========================================
--- 10. AUDIT LOGS TABLE (Compliance & Analytics)
+-- 12. AUDIT LOGS TABLE (Compliance & Analytics - Immutable)
 -- ==========================================
 CREATE TABLE public.audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -179,14 +202,20 @@ CREATE INDEX idx_bill_reminders_due ON public.bill_reminders(user_id, due_date) 
 CREATE INDEX idx_notifications_unread ON public.system_notifications(user_id) WHERE is_read = FALSE;
 CREATE INDEX idx_audit_user_action ON public.audit_logs(user_id, action);
 
+-- Hardening indexes
+CREATE INDEX idx_bill_reminders_category ON public.bill_reminders(category_id);
+CREATE INDEX idx_chat_messages_user_created ON public.chat_messages(user_id, created_at DESC);
+CREATE INDEX idx_goal_tx_user_goal ON public.goal_transactions(user_id, goal_id);
+
 -- ==========================================
 -- TRIGGERS & PROCEDURES
 -- ==========================================
 
--- 1. Automated Profile Trigger
+-- 1. Automated Profile & Settings Trigger
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Create Profile Row
   INSERT INTO public.profiles (user_id, name, email, avatar_url, has_setup_profile)
   VALUES (
     new.id,
@@ -195,6 +224,16 @@ BEGIN
     COALESCE(new.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'),
     FALSE
   );
+
+  -- Create Settings Row
+  INSERT INTO public.user_settings (user_id, theme, strict_lock, sound_effects)
+  VALUES (
+    new.id,
+    'dark',
+    TRUE,
+    FALSE
+  );
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -268,10 +307,12 @@ CREATE TRIGGER audit_budgets_trigger
 -- ==========================================
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.incomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.savings_goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.goal_transactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bill_reminders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.system_notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
@@ -294,7 +335,14 @@ CREATE POLICY "Allow select own profile details" ON public.profiles
 CREATE POLICY "Allow update own profile details" ON public.profiles
     FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- 3. INCOMES POLICIES
+-- 3. USER SETTINGS POLICIES
+CREATE POLICY "Allow select own settings" ON public.user_settings
+    FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow update own settings" ON public.user_settings
+    FOR UPDATE TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- 4. INCOMES POLICIES
 CREATE POLICY "Allow select own incomes" ON public.incomes
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
@@ -307,7 +355,7 @@ CREATE POLICY "Allow update own incomes" ON public.incomes
 CREATE POLICY "Allow delete own incomes" ON public.incomes
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 4. EXPENSES POLICIES
+-- 5. EXPENSES POLICIES
 CREATE POLICY "Allow select own expenses" ON public.expenses
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
@@ -320,7 +368,7 @@ CREATE POLICY "Allow update own expenses" ON public.expenses
 CREATE POLICY "Allow delete own expenses" ON public.expenses
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 5. BUDGETS POLICIES
+-- 6. BUDGETS POLICIES
 CREATE POLICY "Allow select own budgets" ON public.budgets
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
@@ -333,7 +381,7 @@ CREATE POLICY "Allow update own budgets" ON public.budgets
 CREATE POLICY "Allow delete own budgets" ON public.budgets
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 6. SAVINGS GOALS POLICIES
+-- 7. SAVINGS GOALS POLICIES
 CREATE POLICY "Allow select own goals" ON public.savings_goals
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
@@ -346,7 +394,14 @@ CREATE POLICY "Allow update own goals" ON public.savings_goals
 CREATE POLICY "Allow delete own goals" ON public.savings_goals
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 7. BILL REMINDERS POLICIES
+-- 8. GOAL TRANSACTIONS POLICIES
+CREATE POLICY "Allow select own goal transactions" ON public.goal_transactions
+    FOR SELECT TO authenticated USING (auth.uid() = user_id);
+
+CREATE POLICY "Allow insert own goal transactions" ON public.goal_transactions
+    FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
+
+-- 9. BILL REMINDERS POLICIES
 CREATE POLICY "Allow select own reminders" ON public.bill_reminders
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
@@ -359,7 +414,7 @@ CREATE POLICY "Allow update own reminders" ON public.bill_reminders
 CREATE POLICY "Allow delete own reminders" ON public.bill_reminders
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 8. SYSTEM NOTIFICATIONS POLICIES
+-- 10. SYSTEM NOTIFICATIONS POLICIES
 CREATE POLICY "Allow select own notifications" ON public.system_notifications
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
@@ -369,16 +424,13 @@ CREATE POLICY "Allow update own notifications" ON public.system_notifications
 CREATE POLICY "Allow delete own notifications" ON public.system_notifications
     FOR DELETE TO authenticated USING (auth.uid() = user_id);
 
--- 9. CHAT MESSAGES POLICIES
+-- 11. CHAT MESSAGES POLICIES
 CREATE POLICY "Allow select own chats" ON public.chat_messages
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
 
 CREATE POLICY "Allow insert own chats" ON public.chat_messages
     FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
 
--- 10. AUDIT LOGS POLICIES
+-- 12. AUDIT LOGS POLICIES (Read-Only to Tenant, Manual Write Blocked)
 CREATE POLICY "Allow select own audit logs" ON public.audit_logs
     FOR SELECT TO authenticated USING (auth.uid() = user_id);
-
-CREATE POLICY "Allow insert own audit logs" ON public.audit_logs
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);
