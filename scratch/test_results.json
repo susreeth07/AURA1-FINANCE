@@ -7,6 +7,7 @@
     "Session Persistence",
     "Profile Auto Creation Trigger",
     "User Settings Auto Creation Trigger",
+    "Password Reset Requests",
     "Profiles Update & Read",
     "Incomes CRUD",
     "Expenses CRUD",
@@ -18,9 +19,7 @@
     "Chat Messages CRUD",
     "Audit Log Triggers Fired"
   ],
-  "failed": [
-    "Password Reset Requests: email rate limit exceeded"
-  ],
+  "failed": [],
   "security": [
     "RLS Profiles Isolation",
     "RLS Incomes Isolation",

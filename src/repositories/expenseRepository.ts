@@ -1,37 +1,39 @@
 import { supabase } from '../lib/supabaseClient';
-import { IncomeItem } from '../types';
+import { ExpenseItem } from '../types';
 import { BaseRepository } from './baseRepository';
 import { logger } from '../utils/logger';
 
-export class IncomeRepository extends BaseRepository<any, IncomeItem> {
+export class ExpenseRepository extends BaseRepository<any, ExpenseItem> {
   constructor() {
-    super('incomes');
+    super('expenses');
   }
 
-  mapDbToModel(row: any): IncomeItem {
+  mapDbToModel(row: any): ExpenseItem {
     return {
       id: row.id,
-      source: row.source,
+      merchant: row.merchant,
       amount: Number(row.amount),
       category: row.categories?.name || 'Other',
       date: row.date,
       description: row.description || '',
-      isRecurring: row.is_recurring || false
+      isRecurring: row.is_recurring || false,
+      frequency: row.frequency as any
     };
   }
 
-  mapModelToDb(model: Partial<IncomeItem>): any {
+  mapModelToDb(model: Partial<ExpenseItem>): any {
     const row: any = {};
-    if (model.source !== undefined) row.source = model.source;
+    if (model.merchant !== undefined) row.merchant = model.merchant;
     if (model.amount !== undefined) row.amount = model.amount;
     if (model.date !== undefined) row.date = model.date;
     if (model.description !== undefined) row.description = model.description || null;
     if (model.isRecurring !== undefined) row.is_recurring = model.isRecurring;
+    if (model.frequency !== undefined) row.frequency = model.frequency || null;
     return row;
   }
 
   /**
-   * Look up a category ID (UUID) by name for a user (or system defaults).
+   * Look up a category ID (UUID) by name for a user (or system defaults) for outflow category types.
    */
   async getCategoryIdByName(userId: string, categoryName: string): Promise<string | null> {
     return this.tracePerformance('getCategoryIdByName', async () => {
@@ -40,7 +42,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
         .select('id')
         .or(`user_id.eq.${userId},user_id.is.null`)
         .eq('name', categoryName)
-        .eq('type', 'inflow')
+        .eq('type', 'outflow')
         .maybeSingle();
 
       if (error) {
@@ -49,7 +51,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
       }
       if (data) return data.id;
 
-      // Fallback: If not found, look up the 'Other' category
+      // Fallback: If not found, look up the 'Other' outflow category
       if (categoryName !== 'Other') {
         return this.getCategoryIdByName(userId, 'Other');
       }
@@ -58,15 +60,15 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
   }
 
   /**
-   * Fetch incomes with support for filtering and pagination.
+   * Fetch expenses with support for filtering, search, pagination, and ordering.
    */
-  async fetchIncomes(
+  async fetchExpenses(
     userId: string,
-    filters?: { startDate?: string; endDate?: string; category?: string },
+    filters?: { startDate?: string; endDate?: string; category?: string; search?: string },
     page = 1,
     pageSize = 20
-  ): Promise<{ data: IncomeItem[]; count: number | null }> {
-    return this.tracePerformance('fetchIncomes', async () => {
+  ): Promise<{ data: ExpenseItem[]; count: number | null }> {
+    return this.tracePerformance('fetchExpenses', async () => {
       let query = supabase
         .from(this.tableName)
         .select('*, categories(name)', { count: 'exact' })
@@ -89,6 +91,10 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
         if (filters.endDate) {
           query = query.lte('date', filters.endDate);
         }
+        if (filters.search) {
+          // Perform a case-insensitive logical search on merchant or description attributes
+          query = query.or(`merchant.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+        }
       }
 
       const { from, to } = this.getRange(page, pageSize);
@@ -96,7 +102,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
 
       const { data, error, count } = await query;
       if (error) {
-        logger.supabaseError('fetchIncomes', error);
+        logger.supabaseError('fetchExpenses', error);
         throw error;
       }
 
@@ -108,19 +114,19 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
   }
 
   /**
-   * Insert a new income record with category mapping.
+   * Insert a new expense record.
    */
-  async insertIncome(
+  async insertExpense(
     userId: string,
-    income: Omit<IncomeItem, 'id'> & { id?: string }
-  ): Promise<IncomeItem> {
-    return this.tracePerformance('insertIncome', async () => {
-      const categoryId = await this.getCategoryIdByName(userId, income.category);
-      const mapped = this.mapModelToDb(income);
+    expense: Omit<ExpenseItem, 'id'> & { id?: string }
+  ): Promise<ExpenseItem> {
+    return this.tracePerformance('insertExpense', async () => {
+      const categoryId = await this.getCategoryIdByName(userId, expense.category);
+      const mapped = this.mapModelToDb(expense);
       mapped.category_id = categoryId;
       mapped.user_id = userId;
-      if (income.id) {
-        mapped.id = income.id;
+      if (expense.id) {
+        mapped.id = expense.id;
       }
 
       const { data, error } = await supabase
@@ -130,7 +136,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
         .single();
 
       if (error) {
-        logger.supabaseError('insertIncome', error);
+        logger.supabaseError('insertExpense', error);
         throw error;
       }
       return this.mapDbToModel(data);
@@ -138,14 +144,14 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
   }
 
   /**
-   * Update an existing income record using delta changes.
+   * Update an existing expense record using delta changes.
    */
-  async updateIncome(
+  async updateExpense(
     userId: string,
     id: string,
-    updates: Partial<IncomeItem>
-  ): Promise<IncomeItem> {
-    return this.tracePerformance('updateIncome', async () => {
+    updates: Partial<ExpenseItem>
+  ): Promise<ExpenseItem> {
+    return this.tracePerformance('updateExpense', async () => {
       const mapped = this.mapModelToDb(updates);
       if (updates.category !== undefined) {
         const categoryId = await this.getCategoryIdByName(userId, updates.category);
@@ -161,7 +167,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
         .single();
 
       if (error) {
-        logger.supabaseError('updateIncome', error);
+        logger.supabaseError('updateExpense', error);
         throw error;
       }
       return this.mapDbToModel(data);
@@ -169,4 +175,4 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
   }
 }
 
-export const incomeRepository = new IncomeRepository();
+export const expenseRepository = new ExpenseRepository();

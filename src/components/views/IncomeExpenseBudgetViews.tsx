@@ -19,6 +19,7 @@ interface ViewProps {
   onUpdateBudget: (item: BudgetItem) => void;
   onAddBudget: (item: BudgetItem) => void;
   isIncomeSaving?: boolean;
+  isExpenseSaving?: boolean;
 }
 
 export const IncomePanel: React.FC<ViewProps> = ({ 
@@ -228,7 +229,7 @@ export const IncomePanel: React.FC<ViewProps> = ({
 };
 
 export const ExpensePanel: React.FC<ViewProps> = ({ 
-  expenses, onAddExpense, onEditExpense, onDeleteExpense 
+  expenses, onAddExpense, onEditExpense, onDeleteExpense, isExpenseSaving 
 }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -292,7 +293,8 @@ export const ExpensePanel: React.FC<ViewProps> = ({
         </div>
         <button 
           onClick={() => { setShowAdd(!showAdd); setEditingId(null); }}
-          className="px-4 py-2.5 rounded-xl bg-pink-600 text-white hover:bg-pink-700 text-xs font-bold flex items-center gap-2 transition-all"
+          disabled={isExpenseSaving}
+          className={`px-4 py-2.5 rounded-xl bg-pink-600 text-white hover:bg-pink-700 text-xs font-bold flex items-center gap-2 transition-all ${isExpenseSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Plus className="w-4 h-4" /> {showAdd ? 'Collapse Portal' : 'Add Debit Outflow'}
         </button>
@@ -385,11 +387,13 @@ export const ExpensePanel: React.FC<ViewProps> = ({
               Cancel
             </button>
             <button 
-              type="submit" 
-              className="px-5 py-2.5 rounded-xl bg-pink-600 text-white font-bold text-xs"
-            >
-              {editingId ? 'Modify Debit' : 'Post Debit Outflow'}
-            </button>
+               type="submit" 
+               disabled={isExpenseSaving}
+               className={`px-5 py-2.5 rounded-xl bg-pink-600 text-white font-bold text-xs flex items-center gap-2 ${isExpenseSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+             >
+               {isExpenseSaving && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+               {editingId ? 'Modify Debit' : 'Post Debit Outflow'}
+             </button>
           </div>
         </motion.form>
       )}
@@ -426,10 +430,18 @@ export const ExpensePanel: React.FC<ViewProps> = ({
               <div className="flex items-center gap-6">
                 <span className="text-base font-black text-rose-400 font-mono">-₹{item.amount.toLocaleString()}</span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => startEdit(item)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-pink-400 transition-colors">
+                  <button 
+                    onClick={() => startEdit(item)} 
+                    disabled={isExpenseSaving}
+                    className={`p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-pink-400 transition-colors ${isExpenseSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => onDeleteExpense(item.id)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-rose-400 transition-colors">
+                  <button 
+                    onClick={() => onDeleteExpense(item.id)} 
+                    disabled={isExpenseSaving}
+                    className={`p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-rose-400 transition-colors ${isExpenseSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>

@@ -14,6 +14,10 @@ import { LoginView, SignupView, ForgotPasswordView } from './components/views/Au
 import { authService } from './services/authService';
 import { supabase } from './lib/supabaseClient';
 import { incomeService } from './services/incomeService';
+import { expenseService } from './services/expenseService';
+import { toast, ToastMessage } from './utils/toast';
+import { useOptimisticMutation } from './hooks/useOptimisticMutation';
+import { useRealtime } from './hooks/useRealtime';
 import { FinancialProfileSetupView } from './components/views/FinancialProfileSetupView';
 import { DashboardView } from './components/views/DashboardView';
 import { IncomePanel, ExpensePanel, BudgetPanel } from './components/views/IncomeExpenseBudgetViews';
@@ -57,16 +61,27 @@ function MainApp() {
   const [showSalaryPopup, setShowSalaryPopup] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // 5. Income Module States
-  const [isIncomeSaving, setIsIncomeSaving] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  // 5. Enterprise Infrastructure & Toast / Mutation States
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    setToast({ type, message });
-    setTimeout(() => {
-      setToast(null);
-    }, 4000);
-  };
+  useEffect(() => {
+    const unsubscribe = toast.subscribe((event) => {
+      if (event.type === 'add') {
+        setToasts((prev) => [...prev, event.toast]);
+        if (event.toast.duration && event.toast.duration > 0) {
+          setTimeout(() => {
+            setToasts((prev) => prev.filter((t) => t.id !== event.toast.id));
+          }, event.toast.duration);
+        }
+      } else if (event.type === 'dismiss') {
+        setToasts((prev) => prev.filter((t) => t.id !== event.id));
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  const { mutate: mutateIncome, isSaving: isIncomeSaving } = useOptimisticMutation<IncomeItem>(setIncomes);
+  const { mutate: mutateExpense, isSaving: isExpenseSaving } = useOptimisticMutation<ExpenseItem>(setExpenses);
 
   // Asynchronous Database Loader
   const loadAllUserData = async () => {
@@ -111,25 +126,8 @@ function MainApp() {
       setIncomes(incomesResult.data);
 
       // 3. Fetch Expenses
-      const { data: expensesData, error: expensesErr } = await supabase
-        .from('expenses')
-        .select('*, categories(name)')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
-
-      if (expensesErr) throw expensesErr;
-      if (expensesData) {
-        setExpenses(expensesData.map(e => ({
-          id: e.id,
-          merchant: e.merchant,
-          amount: Number(e.amount),
-          category: (e.categories as any)?.name || 'Other',
-          date: e.date,
-          description: e.description || '',
-          isRecurring: e.is_recurring,
-          frequency: e.frequency as any
-        })));
-      }
+      const expensesResult = await expenseService.fetchExpenses(userId, undefined, 1, 100);
+      setExpenses(expensesResult.data);
 
       // 4. Fetch Budgets
       const { data: budgetsData, error: budgetsErr } = await supabase
@@ -345,20 +343,9 @@ function MainApp() {
   };
 
   // State Modifers for Inflows
-  const handleAddIncome = async (item: IncomeItem) => {
-    if (isIncomeSaving) return;
-    setIsIncomeSaving(true);
-
-    const originalIncomes = [...incomes];
+  const handleAddIncome = (item: IncomeItem) => {
     const originalNotifications = [...notifications];
 
-    const tempId = item.id || `inc-temp-${Date.now()}`;
-    const optimisticItem: IncomeItem = { ...item, id: tempId };
-
-    // Optimistic UI update
-    setIncomes((prev) => [optimisticItem, ...prev]);
-
-    // Append auto alert notification optimistically
     const alert: SystemNotification = {
       id: `not-${Date.now()}`,
       type: 'ai',
@@ -369,35 +356,18 @@ function MainApp() {
     };
     setNotifications((prev) => [alert, ...prev]);
 
-    try {
-      const savedItem = await incomeService.createIncome(userId, {
-        id: tempId,
-        source: item.source,
-        amount: item.amount,
-        category: item.category,
-        date: item.date,
-        description: item.description,
-        isRecurring: item.isRecurring
-      });
-
-      setIncomes((prev) =>
-        prev.map((i) => (i.id === tempId ? savedItem : i))
-      );
-      showToast(`Inward flow from "${item.source}" recorded.`, 'success');
-    } catch (err: any) {
-      console.error('[AddIncome] Save failed, rolling back:', err);
-      setIncomes(originalIncomes);
+    mutateIncome(incomes, 'insert', item, () =>
+      incomeService.createIncome(userId, item)
+    , {
+      success: `Inward flow from "${item.source}" recorded.`,
+      error: 'Failed to record inflow. State reverted.'
+    }).catch(() => {
       setNotifications(originalNotifications);
-      showToast(err.message || 'Failed to save income. State reverted.', 'error');
-    } finally {
-      setIsIncomeSaving(false);
-    }
+    });
   };
 
-  const handleEditIncome = async (revised: IncomeItem) => {
-    if (isIncomeSaving) return;
-    
-    const originalItem = incomes.find((item) => item.id === revised.id);
+  const handleEditIncome = (revised: IncomeItem) => {
+    const originalItem = incomes.find((i) => i.id === revised.id);
     if (!originalItem) return;
 
     const delta: Partial<IncomeItem> = {};
@@ -408,59 +378,27 @@ function MainApp() {
     if (revised.description !== originalItem.description) delta.description = revised.description;
     if (revised.isRecurring !== originalItem.isRecurring) delta.isRecurring = revised.isRecurring;
 
-    if (Object.keys(delta).length === 0) {
-      return;
-    }
+    if (Object.keys(delta).length === 0) return;
 
-    setIsIncomeSaving(true);
-    const originalIncomes = [...incomes];
-
-    // Optimistic UI update
-    setIncomes((prev) =>
-      prev.map((i) => (i.id === revised.id ? revised : i))
-    );
-
-    try {
-      const updatedItem = await incomeService.updateIncome(userId, revised.id, delta);
-      setIncomes((prev) =>
-        prev.map((i) => (i.id === revised.id ? updatedItem : i))
-      );
-      showToast(`Revenue entry updated successfully.`, 'success');
-    } catch (err: any) {
-      console.error('[EditIncome] Update failed, rolling back:', err);
-      setIncomes(originalIncomes);
-      showToast(err.message || 'Failed to update income. State reverted.', 'error');
-    } finally {
-      setIsIncomeSaving(false);
-    }
+    mutateIncome(incomes, 'update', { id: revised.id, updates: delta }, () =>
+      incomeService.updateIncome(userId, revised.id, delta)
+    , {
+      success: 'Revenue entry updated successfully.'
+    });
   };
 
-  const handleDeleteIncome = async (id: string) => {
-    if (isIncomeSaving) return;
-    setIsIncomeSaving(true);
-
-    const originalIncomes = [...incomes];
-
-    // Optimistic UI update
-    setIncomes((prev) => prev.filter((item) => item.id !== id));
-
-    try {
-      await incomeService.deleteIncome(userId, id);
-      showToast(`Revenue entry deleted.`, 'success');
-    } catch (err: any) {
-      console.error('[DeleteIncome] Delete failed, rolling back:', err);
-      setIncomes(originalIncomes);
-      showToast(err.message || 'Failed to delete income. State reverted.', 'error');
-    } finally {
-      setIsIncomeSaving(false);
-    }
+  const handleDeleteIncome = (id: string) => {
+    mutateIncome(incomes, 'delete', id, () =>
+      incomeService.deleteIncome(userId, id)
+    , {
+      success: 'Revenue entry deleted.'
+    });
   };
 
   // State Modifiers for Debits
   const handleAddExpense = (item: ExpenseItem) => {
-    setExpenses((prev) => [item, ...prev]);
-    
-    // Check against budget thresholds
+    const originalNotifications = [...notifications];
+
     const matchedBudget = budgets.find(b => b.category.toLowerCase() === item.category.toLowerCase());
     if (matchedBudget) {
       const spentNow = expenses
@@ -480,14 +418,45 @@ function MainApp() {
         setNotifications(prev => [warning, ...prev]);
       }
     }
+
+    mutateExpense(expenses, 'insert', item, () =>
+      expenseService.createExpense(userId, item)
+    , {
+      success: `Expense of ₹${item.amount} at "${item.merchant}" recorded.`,
+      error: 'Failed to record expense. State reverted.'
+    }).catch(() => {
+      setNotifications(originalNotifications);
+    });
   };
 
   const handleEditExpense = (revised: ExpenseItem) => {
-    setExpenses((prev) => prev.map(item => item.id === revised.id ? revised : item));
+    const originalItem = expenses.find((e) => e.id === revised.id);
+    if (!originalItem) return;
+
+    const delta: Partial<ExpenseItem> = {};
+    if (revised.merchant !== originalItem.merchant) delta.merchant = revised.merchant;
+    if (revised.amount !== originalItem.amount) delta.amount = revised.amount;
+    if (revised.category !== originalItem.category) delta.category = revised.category;
+    if (revised.date !== originalItem.date) delta.date = revised.date;
+    if (revised.description !== originalItem.description) delta.description = revised.description;
+    if (revised.isRecurring !== originalItem.isRecurring) delta.isRecurring = revised.isRecurring;
+    if (revised.frequency !== originalItem.frequency) delta.frequency = revised.frequency;
+
+    if (Object.keys(delta).length === 0) return;
+
+    mutateExpense(expenses, 'update', { id: revised.id, updates: delta }, () =>
+      expenseService.updateExpense(userId, revised.id, delta)
+    , {
+      success: 'Expense entry updated successfully.'
+    });
   };
 
   const handleDeleteExpense = (id: string) => {
-    setExpenses((prev) => prev.filter(item => item.id !== id));
+    mutateExpense(expenses, 'delete', id, () =>
+      expenseService.deleteExpense(userId, id)
+    , {
+      success: 'Expense entry deleted.'
+    });
   };
 
   const handleAddBudget = (b: BudgetItem) => {
@@ -850,6 +819,7 @@ function MainApp() {
                   onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
                   onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
                   onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget}
+                  isExpenseSaving={isExpenseSaving}
                 />
               )}
 
@@ -988,27 +958,41 @@ function MainApp() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.9 }}
-            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl ${
-              toast.type === 'error'
-                ? 'bg-rose-950/85 border-rose-500/30 text-rose-200'
-                : 'bg-emerald-950/85 border-emerald-500/30 text-emerald-200'
-            }`}
-          >
-            {toast.type === 'error' ? (
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            ) : (
-              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-            )}
-            <span className="text-xs font-semibold font-sans">{toast.message}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        <AnimatePresence>
+          {toasts.map((t) => (
+            <motion.div
+              key={t.id}
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.9 }}
+              className={`flex items-center justify-between gap-3 px-5 py-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl pointer-events-auto ${
+                t.type === 'error'
+                  ? 'bg-rose-950/85 border-rose-500/30 text-rose-200'
+                  : t.type === 'loading'
+                  ? 'bg-slate-950/85 border-slate-700/30 text-slate-200'
+                  : t.type === 'warning'
+                  ? 'bg-amber-950/85 border-amber-500/30 text-amber-200'
+                  : 'bg-emerald-950/85 border-emerald-500/30 text-emerald-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                {t.type === 'error' && <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />}
+                {t.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />}
+                {t.type === 'loading' && <div className="w-4 h-4 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin shrink-0" />}
+                {(t.type === 'success' || t.type === 'info') && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                <span className="text-xs font-semibold font-sans">{t.message}</span>
+              </div>
+              <button 
+                onClick={() => toast.dismiss(t.id)} 
+                className="text-[9px] font-mono text-slate-400 hover:text-white pl-2 cursor-pointer select-none"
+              >
+                DISMISS
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
 
     </div>
   );
