@@ -286,15 +286,42 @@ function MainApp() {
     };
   }, [isLoggedIn, userId]);
 
+  // Shared Helper to Synchronize Auth Session and Profile Routing
+  const syncUserSessionAndRoute = async (session: any) => {
+    if (!session?.user) return;
+    const authUserId = session.user.id;
+    
+    setIsLoggedIn(true);
+    setUserId(authUserId);
+    setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('has_setup_profile')
+        .eq('user_id', authUserId)
+        .maybeSingle();
+      
+      if (error) throw error;
+
+      if (profile && profile.has_setup_profile) {
+        setCurrentView('dashboard');
+      } else {
+        setCurrentView('setup');
+      }
+    } catch (err) {
+      console.error("[Auth] Profile routing failed, default to setup view:", err);
+      setCurrentView('setup');
+    }
+  };
+
   // Supabase Session Listener
   useEffect(() => {
     const checkSession = async () => {
       try {
         const session = await authService.getSession();
         if (session?.user) {
-          setIsLoggedIn(true);
-          setUserId(session.user.id);
-          setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
+          await syncUserSessionAndRoute(session);
         }
       } catch (err) {
         console.error("Session check failed:", err);
@@ -302,11 +329,9 @@ function MainApp() {
     };
     checkSession();
 
-    const subscription = authService.onAuthStateChange((event, session) => {
+    const subscription = authService.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        setIsLoggedIn(true);
-        setUserId(session.user.id);
-        setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
+        await syncUserSessionAndRoute(session);
       } else if (event === 'SIGNED_OUT') {
         setIsLoggedIn(false);
         setUserId('');
@@ -353,27 +378,18 @@ function MainApp() {
     setUserProfile(prev => ({ ...prev, email }));
     
     try {
-      const userRes = await supabase.auth.getUser();
-      const authUserId = userRes.data.user?.id;
-      if (!authUserId) {
-        console.error('[Auth] No user ID returned from getUser(). Cannot proceed.');
-        setCurrentView('setup');
-        return;
-      }
-
-      // Critical: populate React state before navigating to setup/dashboard
-      setUserId(authUserId);
-      
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('has_setup_profile')
-        .eq('user_id', authUserId)
-        .maybeSingle();
-      
-      if (profile && profile.has_setup_profile) {
-        setCurrentView('dashboard');
-        setTimeout(() => setShowSalaryPopup(true), 1500);
+      const session = await authService.getSession();
+      if (session) {
+        await syncUserSessionAndRoute(session);
       } else {
+        const userRes = await supabase.auth.getUser();
+        const authUserId = userRes.data.user?.id;
+        if (!authUserId) {
+          console.error('[Auth] No user ID returned from getUser(). Cannot proceed.');
+          setCurrentView('setup');
+          return;
+        }
+        setUserId(authUserId);
         setCurrentView('setup');
       }
     } catch (err) {
