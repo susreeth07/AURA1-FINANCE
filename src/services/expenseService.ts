@@ -2,6 +2,9 @@ import { expenseRepository } from '../repositories/expenseRepository';
 import { ExpenseItem } from '../types';
 import { retryWithBackoff } from '../utils/retry';
 import { validators } from '../utils/validation';
+import { DomainEventBus } from '../domain/events/DomainEventBus';
+import { ExpenseAdded, ExpenseUpdated } from '../domain/events/FinancialEvents';
+import { Money } from '../domain/finance/Money';
 
 export const expenseService = {
   /**
@@ -77,9 +80,16 @@ export const expenseService = {
       throw new Error(`Validation Error: ${errorMsg}`);
     }
 
-    return retryWithBackoff(() =>
+    const result = await retryWithBackoff(() =>
       expenseRepository.insertExpense(userId, expense)
     );
+    DomainEventBus.publish(new ExpenseAdded(
+      userId,
+      result.id,
+      Money.fromDecimal(result.amount),
+      result.category
+    ));
+    return result;
   },
 
   /**
@@ -96,17 +106,25 @@ export const expenseService = {
       throw new Error(`Validation Error: ${errorMsg}`);
     }
 
-    return retryWithBackoff(() =>
+    const result = await retryWithBackoff(() =>
       expenseRepository.updateExpense(userId, id, updates)
     );
+    DomainEventBus.publish(new ExpenseUpdated(
+      userId,
+      result.id,
+      result.amount !== undefined ? Money.fromDecimal(result.amount) : undefined,
+      result.category
+    ));
+    return result;
   },
 
   /**
    * Delete expense with retry.
    */
   async deleteExpense(userId: string, id: string): Promise<void> {
-    return retryWithBackoff(() =>
+    await retryWithBackoff(() =>
       expenseRepository.delete(userId, id)
     );
+    DomainEventBus.publish(new ExpenseUpdated(userId, id));
   }
 };

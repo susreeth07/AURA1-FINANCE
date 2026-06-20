@@ -2,6 +2,9 @@ import { incomeRepository } from '../repositories/incomeRepository';
 import { IncomeItem } from '../types';
 import { retryWithBackoff } from '../utils/retry';
 import { validators } from '../utils/validation';
+import { DomainEventBus } from '../domain/events/DomainEventBus';
+import { IncomeAdded, IncomeUpdated } from '../domain/events/FinancialEvents';
+import { Money } from '../domain/finance/Money';
 
 export const incomeService = {
   /**
@@ -65,9 +68,16 @@ export const incomeService = {
       throw new Error(`Validation Error: ${errorMsg}`);
     }
 
-    return retryWithBackoff(() =>
+    const result = await retryWithBackoff(() =>
       incomeRepository.insertIncome(userId, income)
     );
+    DomainEventBus.publish(new IncomeAdded(
+      userId,
+      result.id,
+      Money.fromDecimal(result.amount),
+      result.category
+    ));
+    return result;
   },
 
   /**
@@ -84,17 +94,25 @@ export const incomeService = {
       throw new Error(`Validation Error: ${errorMsg}`);
     }
 
-    return retryWithBackoff(() =>
+    const result = await retryWithBackoff(() =>
       incomeRepository.updateIncome(userId, id, updates)
     );
+    DomainEventBus.publish(new IncomeUpdated(
+      userId,
+      result.id,
+      result.amount !== undefined ? Money.fromDecimal(result.amount) : undefined,
+      result.category
+    ));
+    return result;
   },
 
   /**
    * Delete income with retry.
    */
   async deleteIncome(userId: string, id: string): Promise<void> {
-    return retryWithBackoff(() =>
+    await retryWithBackoff(() =>
       incomeRepository.delete(userId, id)
     );
+    DomainEventBus.publish(new IncomeUpdated(userId, id));
   }
 };

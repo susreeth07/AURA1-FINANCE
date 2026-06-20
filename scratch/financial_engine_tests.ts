@@ -652,9 +652,10 @@ function testErrorsAndEvents() {
   const err = new InvalidBudgetError("Custom message");
   assert(err instanceof Error && err.code === "INVALID_BUDGET", "Custom error properties");
 
-  const ev = new IncomeAdded("inc123", Money.fromDecimal("2000.00", Currency.USD), "Salary");
+  const ev = new IncomeAdded("user123", "inc123", Money.fromDecimal("2000.00", Currency.USD), "Salary");
   assert(ev.eventName === "IncomeAdded", "Event names mapping");
   assert(ev.payload.incomeId === "inc123", "Event payloads mapping");
+  assert(ev.payload.userId === "user123", "Event user mapping");
 }
 
 function testStressAndRounding() {
