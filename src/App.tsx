@@ -24,6 +24,8 @@ import { IncomePanel, ExpensePanel, BudgetPanel } from './components/views/Incom
 import { TransactionsPanel, ReportsPanel } from './components/views/TransactionsReportsViews';
 import { GoalsPanel, AiAssistantPanel } from './components/views/GoalsAiViews';
 import { NotificationsPanel, ProfilePanel, SettingsPanel, AdminDashboardPanel } from './components/views/ProfileSettingsAdminViews';
+import { AutomationFacade } from './automation/AutomationFacade';
+import { ActionCenter } from './automation/ActionCenter';
 
 import { 
   INITIAL_USER_PROFILE, INITIAL_INCOMES, INITIAL_EXPENSES, 
@@ -231,6 +233,41 @@ function MainApp() {
       setDbError(null);
     }
   }, [isLoggedIn]);
+
+  // Reactive ActionCenter Dashboard subscriber
+  useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+    if (isLoggedIn && userId) {
+      AutomationFacade.initialize('production');
+      unsubscribe = ActionCenter.subscribe((payload) => {
+        setNotifications(payload.unreadNotifications.map(n => ({
+          id: n.id,
+          type: n.type as any,
+          title: n.title,
+          message: n.message,
+          date: n.createdAt.toISOString(),
+          isRead: n.isRead
+        })));
+        if (payload.upcomingReminders.length > 0) {
+          setReminders(payload.upcomingReminders.map(r => ({
+            id: r.id,
+            title: r.title,
+            amount: Number(r.amount),
+            dueDate: r.due_date,
+            category: r.category || 'Other',
+            isPaid: r.is_paid
+          })));
+        }
+      });
+    } else {
+      AutomationFacade.shutdown();
+    }
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [isLoggedIn, userId]);
 
   // Supabase Session Listener
   useEffect(() => {

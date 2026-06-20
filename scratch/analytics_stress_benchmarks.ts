@@ -248,7 +248,8 @@ function generateMockSnapshot(transactionCount: number): AnalyticsSnapshot {
     savingsGoals,
     notifications: [],
     timelineHistory,
-    cashFlowHistory
+    cashFlowHistory,
+    reminders: []
   };
 }
 

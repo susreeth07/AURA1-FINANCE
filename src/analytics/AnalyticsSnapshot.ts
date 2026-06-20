@@ -15,4 +15,5 @@ export interface AnalyticsSnapshot {
   readonly notifications: readonly any[];
   readonly timelineHistory: readonly TimelineSnapshot[];
   readonly cashFlowHistory: readonly CashFlow[];
+  readonly reminders: readonly any[];
 }

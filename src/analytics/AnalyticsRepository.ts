@@ -26,14 +26,16 @@ export class AnalyticsRepository {
       rawExpenses,
       rawBudgets,
       rawGoals,
-      rawNotifications
+      rawNotifications,
+      rawReminders
     ] = await Promise.all([
       profileService.loadProfile(userId),
       incomeRepository.fetchIncomes(userId, undefined, 1, 5000),
       expenseRepository.fetchExpenses(userId, undefined, 1, 5000),
       budgetRepository.fetchBudgets(userId),
       savingsGoalRepository.fetchSavingsGoals(userId),
-      supabase.from('system_notifications').select('*').eq('user_id', userId).order('date', { ascending: false }).limit(20)
+      supabase.from('system_notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(20),
+      supabase.from('bill_reminders').select('*').eq('user_id', userId).order('due_date', { ascending: true })
     ]);
 
     if (!profileModel) {
@@ -124,7 +126,8 @@ export class AnalyticsRepository {
       savingsGoals: domainGoals,
       notifications: rawNotifications.data || [],
       timelineHistory,
-      cashFlowHistory
+      cashFlowHistory,
+      reminders: rawReminders.data || []
     };
   }
 
