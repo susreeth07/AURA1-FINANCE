@@ -32,6 +32,8 @@ CREATE TABLE public.profiles (
     emi_loans NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (emi_loans >= 0),
     savings_goal_percentage INT NOT NULL DEFAULT 20 CHECK (savings_goal_percentage BETWEEN 0 AND 100),
     has_setup_profile BOOLEAN NOT NULL DEFAULT FALSE,
+    onboarding_step INTEGER DEFAULT 1,
+    completed_at TIMESTAMP WITH TIME ZONE,
     salary_history JSONB NOT NULL DEFAULT '[]'::jsonb,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

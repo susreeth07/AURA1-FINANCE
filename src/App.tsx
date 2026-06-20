@@ -40,6 +40,7 @@ function MainApp() {
 
   // 3. Authenticated Identity States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userId, setUserId] = useState<string>('');
   const [dbLoading, setDbLoading] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
 
@@ -244,6 +245,7 @@ function MainApp() {
         const session = await authService.getSession();
         if (session?.user) {
           setIsLoggedIn(true);
+          setUserId(session.user.id);
           setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
         }
       } catch (err) {
@@ -255,9 +257,11 @@ function MainApp() {
     const subscription = authService.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setIsLoggedIn(true);
+        setUserId(session.user.id);
         setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
       } else if (event === 'SIGNED_OUT') {
         setIsLoggedIn(false);
+        setUserId('');
         setCurrentView('landing');
       }
     });
@@ -326,8 +330,9 @@ function MainApp() {
     }
   };
 
-  const handleProfileSetupComplete = (newProfile: UserProfile) => {
+  const handleProfileSetupComplete = async (newProfile: UserProfile) => {
     setUserProfile(newProfile);
+    await loadAllUserData();
     setCurrentView('dashboard');
     setTimeout(() => setShowSalaryPopup(true), 1500);
   };
@@ -550,7 +555,11 @@ function MainApp() {
       {/* MULTI-STEP PROFILE SETUP ONBOARDING VIEW */}
       {isLoggedIn && currentView === 'setup' && (
         <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
-          <FinancialProfileSetupView onComplete={handleProfileSetupComplete} />
+          <FinancialProfileSetupView 
+            userProfile={userProfile}
+            userId={userId}
+            onComplete={handleProfileSetupComplete} 
+          />
         </div>
       )}
 

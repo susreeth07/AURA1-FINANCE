@@ -60,6 +60,8 @@ export interface UserProfile {
   emiLoans: number;
   savingsGoalPercentage: number;
   hasSetupProfile: boolean;
+  onboardingStep?: number;
+  completedAt?: string;
   salaryHistory: { month: string; amount: number }[];
 }
 

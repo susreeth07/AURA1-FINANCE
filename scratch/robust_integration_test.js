@@ -232,15 +232,23 @@ async function runVerification() {
     console.log('- Testing Profiles CRUD...');
     const { data: updatedProfile, error: errUpdateProfile } = await clientA
       .from('profiles')
-      .update({ monthly_salary: 8200.00, rent: 1800.00, has_setup_profile: true })
+      .update({ 
+        monthly_salary: 8200.00, 
+        rent: 1800.00, 
+        has_setup_profile: true,
+        onboarding_step: 4,
+        completed_at: new Date().toISOString()
+      })
       .eq('user_id', userA_Id)
       .select()
       .single();
 
     if (errUpdateProfile) throw errUpdateProfile;
-    if (updatedProfile.monthly_salary === '8200.00' || Number(updatedProfile.monthly_salary) === 8200.00) {
-      console.log('  ✅ Profile Update verified (monthly_salary = 8200.00).');
+    if (Number(updatedProfile.onboarding_step) === 4 && updatedProfile.completed_at) {
+      console.log('  ✅ Profile Update & Onboarding Columns verified.');
       report.passed.push('Profiles Update & Read');
+    } else {
+      throw new Error("Onboarding columns were not correctly saved/returned in Profile CRUD!");
     }
 
     // CRUD - Incomes
