@@ -101,27 +101,28 @@ function MainApp() {
   const { mutate: mutateIncome, isSaving: isIncomeSaving } = useOptimisticMutation<IncomeItem>(setIncomes);
   const { mutate: mutateExpense, isSaving: isExpenseSaving } = useOptimisticMutation<ExpenseItem>(setExpenses);
 
-  // Asynchronous Database Loader
-  const loadAllUserData = async () => {
+  // Asynchronous Database Loader and Router
+  const loadAllUserData = async (customUserId?: string) => {
+    const activeUserId = customUserId || userId;
+    if (!activeUserId) {
+      setDbError("No active user session detected.");
+      return;
+    }
     setDbLoading(true);
     setDbError(null);
     try {
-      const userRes = await supabase.auth.getUser();
-      const userId = userRes.data.user?.id;
-      if (!userId) {
-        setDbError("No active user session detected.");
-        return;
-      }
-
       // 1. Fetch Profile
       const { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', activeUserId)
         .maybeSingle();
 
       if (profileErr) throw profileErr;
+      
+      let profileCompleted = false;
       if (profile) {
+        profileCompleted = profile.has_setup_profile;
         setUserProfile({
           name: profile.name,
           email: profile.email,
@@ -139,19 +140,26 @@ function MainApp() {
         });
       }
 
+      // If user profile is not completed, route to setup and skip other database loads
+      if (!profileCompleted) {
+        setCurrentView('setup');
+        setDbLoading(false);
+        return;
+      }
+
       // 2. Fetch Incomes
-      const incomesResult = await incomeService.fetchIncomes(userId, undefined, 1, 100);
+      const incomesResult = await incomeService.fetchIncomes(activeUserId, undefined, 1, 100);
       setIncomes(incomesResult.data);
 
       // 3. Fetch Expenses
-      const expensesResult = await expenseService.fetchExpenses(userId, undefined, 1, 100);
+      const expensesResult = await expenseService.fetchExpenses(activeUserId, undefined, 1, 100);
       setExpenses(expensesResult.data);
 
       // 4. Fetch Budgets
       const { data: budgetsData, error: budgetsErr } = await supabase
         .from('budgets')
         .select('*, categories(name, color)')
-        .eq('user_id', userId);
+        .eq('user_id', activeUserId);
 
       if (budgetsErr) throw budgetsErr;
       if (budgetsData) {
@@ -169,7 +177,7 @@ function MainApp() {
       const { data: goalsData, error: goalsErr } = await supabase
         .from('savings_goals')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', activeUserId)
         .order('created_at', { ascending: true });
 
       if (goalsErr) throw goalsErr;
@@ -189,7 +197,7 @@ function MainApp() {
       const { data: remindersData, error: remindersErr } = await supabase
         .from('bill_reminders')
         .select('*, categories(name)')
-        .eq('user_id', userId);
+        .eq('user_id', activeUserId);
 
       if (remindersErr) throw remindersErr;
       if (remindersData) {
@@ -207,7 +215,7 @@ function MainApp() {
       const { data: notificationsData, error: notificationsErr } = await supabase
         .from('system_notifications')
         .select('*')
-        .eq('user_id', userId)
+        .eq('user_id', activeUserId)
         .order('created_at', { ascending: false });
 
       if (notificationsErr) throw notificationsErr;
@@ -221,6 +229,9 @@ function MainApp() {
           isRead: n.is_read
         })));
       }
+
+      // Load completed successfully, set view to dashboard
+      setCurrentView('dashboard');
 
     } catch (err: any) {
       console.error("Database integration load failure:", err);
@@ -237,8 +248,8 @@ function MainApp() {
 
   // Sync session loading trigger
   useEffect(() => {
-    if (isLoggedIn) {
-      loadAllUserData();
+    if (isLoggedIn && userId) {
+      loadAllUserData(userId);
     } else {
       setIncomes([]);
       setExpenses([]);
@@ -248,7 +259,7 @@ function MainApp() {
       setNotifications([]);
       setDbError(null);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, userId]);
 
   // Reactive ActionCenter Dashboard subscriber
   useEffect(() => {
@@ -286,33 +297,12 @@ function MainApp() {
     };
   }, [isLoggedIn, userId]);
 
-  // Shared Helper to Synchronize Auth Session and Profile Routing
+  // Shared Helper to Synchronize Auth Session State
   const syncUserSessionAndRoute = async (session: any) => {
     if (!session?.user) return;
-    const authUserId = session.user.id;
-    
     setIsLoggedIn(true);
-    setUserId(authUserId);
+    setUserId(session.user.id);
     setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
-
-    try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('has_setup_profile')
-        .eq('user_id', authUserId)
-        .maybeSingle();
-      
-      if (error) throw error;
-
-      if (profile && profile.has_setup_profile) {
-        setCurrentView('dashboard');
-      } else {
-        setCurrentView('setup');
-      }
-    } catch (err) {
-      console.error("[Auth] Profile routing failed, default to setup view:", err);
-      setCurrentView('setup');
-    }
   };
 
   // Supabase Session Listener
@@ -376,26 +366,6 @@ function MainApp() {
   const handleAuthSuccess = async (email: string) => {
     setIsLoggedIn(true);
     setUserProfile(prev => ({ ...prev, email }));
-    
-    try {
-      const session = await authService.getSession();
-      if (session) {
-        await syncUserSessionAndRoute(session);
-      } else {
-        const userRes = await supabase.auth.getUser();
-        const authUserId = userRes.data.user?.id;
-        if (!authUserId) {
-          console.error('[Auth] No user ID returned from getUser(). Cannot proceed.');
-          setCurrentView('setup');
-          return;
-        }
-        setUserId(authUserId);
-        setCurrentView('setup');
-      }
-    } catch (err) {
-      console.error(err);
-      setCurrentView('setup');
-    }
   };
 
   const handleProfileSetupComplete = async (newProfile: UserProfile) => {
