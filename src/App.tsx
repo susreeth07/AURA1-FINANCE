@@ -544,6 +544,20 @@ function MainApp() {
     }
   };
 
+  const handleDeleteBudget = async (id: string) => {
+    const original = budgets.find(b => b.id === id);
+    // Optimistic update
+    setBudgets((prev) => prev.filter(b => b.id !== id));
+    try {
+      await budgetService.deleteBudget(userId, id);
+      toast.success('Budget cap removed successfully.');
+    } catch (err: any) {
+      // Rollback on failure
+      if (original) setBudgets((prev) => [...prev, original]);
+      toast.error(`Failed to delete budget: ${err.message || 'Unknown error'}`);
+    }
+  };
+
   // State Modifiers for Savings Goals placements
   const handleAddGoalFunds = async (id: string, amount: number) => {
     const goal = goals.find(g => g.id === id);
@@ -592,6 +606,20 @@ function MainApp() {
       // Rollback on failure
       setGoals(prev => prev.filter(g => g.id !== newGoal.id));
       toast.error(`Failed to save goal: ${err.message || 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteSavingsGoal = async (id: string) => {
+    const original = goals.find(g => g.id === id);
+    // Optimistic update
+    setGoals(prev => prev.filter(g => g.id !== id));
+    try {
+      await goalService.deleteGoal(userId, id);
+      toast.success('Savings goal deleted successfully.');
+    } catch (err: any) {
+      // Rollback on failure
+      if (original) setGoals(prev => [...prev, original]);
+      toast.error(`Failed to delete savings goal: ${err.message || 'Unknown error'}`);
     }
   };
 
@@ -919,7 +947,7 @@ function MainApp() {
                   incomes={incomes} expenses={expenses} budgets={budgets}
                   onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
                   onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget}
+                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
                   isIncomeSaving={isIncomeSaving}
                 />
               )}
@@ -929,7 +957,7 @@ function MainApp() {
                   incomes={incomes} expenses={expenses} budgets={budgets}
                   onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
                   onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget}
+                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
                   isExpenseSaving={isExpenseSaving}
                 />
               )}
@@ -939,7 +967,7 @@ function MainApp() {
                   incomes={incomes} expenses={expenses} budgets={budgets}
                   onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
                   onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget}
+                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
                 />
               )}
 
@@ -963,6 +991,7 @@ function MainApp() {
                   goals={goals} 
                   onAddGoalFunds={handleAddGoalFunds}
                   onAddSavingsGoal={handleAddSavingsGoal}
+                  onDeleteSavingsGoal={handleDeleteSavingsGoal}
                 />
               )}
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Target, Sparkles, Award, CheckCircle2, 
-  Laptop, Bike, Car, Home, ShieldAlert, Palmtree, Plus 
+  Laptop, Bike, Car, Home, ShieldAlert, Palmtree, Plus, Trash2 
 } from 'lucide-react';
 import { SavingsGoal } from '../../types';
 
@@ -10,9 +10,10 @@ interface ViewProps {
   goals: SavingsGoal[];
   onAddGoalFunds: (id: string, amount: number) => void;
   onAddSavingsGoal: (goal: SavingsGoal) => void;
+  onDeleteSavingsGoal?: (id: string) => void;
 }
 
-export const GoalsPanel: React.FC<ViewProps> = ({ goals, onAddGoalFunds, onAddSavingsGoal }) => {
+export const GoalsPanel: React.FC<ViewProps> = ({ goals, onAddGoalFunds, onAddSavingsGoal, onDeleteSavingsGoal }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [fundAmount, setFundAmount] = useState<{ [key: string]: string }>({});
   
@@ -172,15 +173,26 @@ export const GoalsPanel: React.FC<ViewProps> = ({ goals, onAddGoalFunds, onAddSa
                   </div>
                 </div>
                 
-                {isCompleted ? (
-                  <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-mono text-emerald-400 uppercase font-black">
-                    COMPLETED
-                  </span>
-                ) : (
-                  <span className="px-2 py-1 rounded bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-mono text-indigo-400 uppercase font-black">
-                    ACTIVE
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {isCompleted ? (
+                    <span className="px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-[9px] font-mono text-emerald-400 uppercase font-black">
+                      COMPLETED
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 rounded bg-indigo-500/10 border border-indigo-500/20 text-[9px] font-mono text-indigo-400 uppercase font-black">
+                      ACTIVE
+                    </span>
+                  )}
+                  {onDeleteSavingsGoal && (
+                    <button 
+                      onClick={() => onDeleteSavingsGoal(goal.id)}
+                      className="p-1 rounded bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
+                      title="Delete savings goal"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Progress visualizer */}

@@ -18,6 +18,7 @@ interface ViewProps {
   onDeleteExpense: (id: string) => void;
   onUpdateBudget: (item: BudgetItem) => void;
   onAddBudget: (item: BudgetItem) => void;
+  onDeleteBudget?: (id: string) => void;
   isIncomeSaving?: boolean;
   isExpenseSaving?: boolean;
 }
@@ -455,7 +456,7 @@ export const ExpensePanel: React.FC<ViewProps> = ({
 };
 
 export const BudgetPanel: React.FC<ViewProps> = ({ 
-  budgets, expenses, onUpdateBudget, onAddBudget 
+  budgets, expenses, onUpdateBudget, onAddBudget, onDeleteBudget 
 }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [category, setCategory] = useState('');
@@ -582,9 +583,20 @@ export const BudgetPanel: React.FC<ViewProps> = ({
                     </span>
                   )}
                 </div>
-                <span className="text-xs font-mono font-bold text-slate-400">
-                  {percent}% UTILIZED
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono font-bold text-slate-400">
+                    {percent}% UTILIZED
+                  </span>
+                  {onDeleteBudget && (
+                    <button 
+                      onClick={() => onDeleteBudget(item.id)}
+                      className="p-1 rounded bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+                      title="Remove category cap limit"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-3 pl-3">
