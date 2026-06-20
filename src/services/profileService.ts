@@ -91,6 +91,9 @@ export const profileService = {
    * Upserts the profiles table, updating onboarding_step and fields.
    */
   async saveOnboardingStep(userId: string, step: number, profileData: Partial<UserProfile>): Promise<UserProfile> {
+    if (!userId || userId.trim() === '') {
+      throw new Error('[ProfileService] Cannot save onboarding step: userId is empty or missing. Ensure the user is authenticated.');
+    }
     return this.retryOperation(async () => {
       const dbPayload = mapProfileToDb({
         ...profileData,
@@ -115,6 +118,9 @@ export const profileService = {
    * Complete the onboarding flow atomically.
    */
   async completeOnboarding(userId: string, finalProfile: UserProfile): Promise<UserProfile> {
+    if (!userId || userId.trim() === '') {
+      throw new Error('[ProfileService] Cannot complete onboarding: userId is empty or missing. Ensure the user is authenticated.');
+    }
     return this.retryOperation(async () => {
       const dbPayload = mapProfileToDb({
         ...finalProfile,
@@ -141,6 +147,9 @@ export const profileService = {
    * Standard profile update (e.g. settings dashboard adjustments)
    */
   async updateProfile(userId: string, updates: Partial<UserProfile>): Promise<UserProfile> {
+    if (!userId || userId.trim() === '') {
+      throw new Error('[ProfileService] Cannot update profile: userId is empty or missing. Ensure the user is authenticated.');
+    }
     return this.retryOperation(async () => {
       const dbPayload = mapProfileToDb(updates);
       

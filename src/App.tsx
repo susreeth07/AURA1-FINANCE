@@ -354,16 +354,20 @@ function MainApp() {
     
     try {
       const userRes = await supabase.auth.getUser();
-      const userId = userRes.data.user?.id;
-      if (!userId) {
+      const authUserId = userRes.data.user?.id;
+      if (!authUserId) {
+        console.error('[Auth] No user ID returned from getUser(). Cannot proceed.');
         setCurrentView('setup');
         return;
       }
+
+      // Critical: populate React state before navigating to setup/dashboard
+      setUserId(authUserId);
       
       const { data: profile } = await supabase
         .from('profiles')
         .select('has_setup_profile')
-        .eq('user_id', userId)
+        .eq('user_id', authUserId)
         .maybeSingle();
       
       if (profile && profile.has_setup_profile) {
