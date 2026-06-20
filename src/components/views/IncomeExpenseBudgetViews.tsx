@@ -18,10 +18,11 @@ interface ViewProps {
   onDeleteExpense: (id: string) => void;
   onUpdateBudget: (item: BudgetItem) => void;
   onAddBudget: (item: BudgetItem) => void;
+  isIncomeSaving?: boolean;
 }
 
 export const IncomePanel: React.FC<ViewProps> = ({ 
-  incomes, onAddIncome, onEditIncome, onDeleteIncome 
+  incomes, onAddIncome, onEditIncome, onDeleteIncome, isIncomeSaving 
 }) => {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -82,7 +83,8 @@ export const IncomePanel: React.FC<ViewProps> = ({
         </div>
         <button 
           onClick={() => { setShowAdd(!showAdd); setEditingId(null); }}
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold flex items-center gap-2 transition-all"
+          disabled={isIncomeSaving}
+          className={`px-4 py-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold flex items-center gap-2 transition-all ${isIncomeSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Plus className="w-4 h-4" /> {showAdd ? 'Collapse Portal' : 'Add Inward Flow'}
         </button>
@@ -161,8 +163,10 @@ export const IncomePanel: React.FC<ViewProps> = ({
             </button>
             <button 
               type="submit" 
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs"
+              disabled={isIncomeSaving}
+              className={`px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs flex items-center gap-2 ${isIncomeSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
+              {isIncomeSaving && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
               {editingId ? 'Apply Revision' : 'Secure Inflow Entry'}
             </button>
           </div>
@@ -199,10 +203,18 @@ export const IncomePanel: React.FC<ViewProps> = ({
               <div className="flex items-center gap-6">
                 <span className="text-base font-black text-emerald-400 font-mono">+₹{item.amount.toLocaleString()}</span>
                 <div className="flex items-center gap-2">
-                  <button onClick={() => startEdit(item)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-colors">
+                  <button 
+                    onClick={() => startEdit(item)} 
+                    disabled={isIncomeSaving}
+                    className={`p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-indigo-400 transition-colors ${isIncomeSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
-                  <button onClick={() => onDeleteIncome(item.id)} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-rose-400 transition-colors">
+                  <button 
+                    onClick={() => onDeleteIncome(item.id)} 
+                    disabled={isIncomeSaving}
+                    className={`p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-rose-400 transition-colors ${isIncomeSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>

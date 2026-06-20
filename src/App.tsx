@@ -13,6 +13,7 @@ import { LandingPage } from './components/LandingPage';
 import { LoginView, SignupView, ForgotPasswordView } from './components/views/AuthViews';
 import { authService } from './services/authService';
 import { supabase } from './lib/supabaseClient';
+import { incomeService } from './services/incomeService';
 import { FinancialProfileSetupView } from './components/views/FinancialProfileSetupView';
 import { DashboardView } from './components/views/DashboardView';
 import { IncomePanel, ExpensePanel, BudgetPanel } from './components/views/IncomeExpenseBudgetViews';
@@ -56,6 +57,17 @@ function MainApp() {
   const [showSalaryPopup, setShowSalaryPopup] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
+  // 5. Income Module States
+  const [isIncomeSaving, setIsIncomeSaving] = useState(false);
+  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ type, message });
+    setTimeout(() => {
+      setToast(null);
+    }, 4000);
+  };
+
   // Asynchronous Database Loader
   const loadAllUserData = async () => {
     setDbLoading(true);
@@ -95,24 +107,8 @@ function MainApp() {
       }
 
       // 2. Fetch Incomes
-      const { data: incomesData, error: incomesErr } = await supabase
-        .from('incomes')
-        .select('*, categories(name)')
-        .eq('user_id', userId)
-        .order('date', { ascending: false });
-
-      if (incomesErr) throw incomesErr;
-      if (incomesData) {
-        setIncomes(incomesData.map(i => ({
-          id: i.id,
-          source: i.source,
-          amount: Number(i.amount),
-          category: (i.categories as any)?.name || 'Other',
-          date: i.date,
-          description: i.description || '',
-          isRecurring: i.is_recurring
-        })));
-      }
+      const incomesResult = await incomeService.fetchIncomes(userId, undefined, 1, 100);
+      setIncomes(incomesResult.data);
 
       // 3. Fetch Expenses
       const { data: expensesData, error: expensesErr } = await supabase
@@ -349,9 +345,20 @@ function MainApp() {
   };
 
   // State Modifers for Inflows
-  const handleAddIncome = (item: IncomeItem) => {
-    setIncomes((prev) => [item, ...prev]);
-    // Append auto alert notification
+  const handleAddIncome = async (item: IncomeItem) => {
+    if (isIncomeSaving) return;
+    setIsIncomeSaving(true);
+
+    const originalIncomes = [...incomes];
+    const originalNotifications = [...notifications];
+
+    const tempId = item.id || `inc-temp-${Date.now()}`;
+    const optimisticItem: IncomeItem = { ...item, id: tempId };
+
+    // Optimistic UI update
+    setIncomes((prev) => [optimisticItem, ...prev]);
+
+    // Append auto alert notification optimistically
     const alert: SystemNotification = {
       id: `not-${Date.now()}`,
       type: 'ai',
@@ -360,15 +367,93 @@ function MainApp() {
       date: new Date().toISOString(),
       isRead: false
     };
-    setNotifications(prev => [alert, ...prev]);
+    setNotifications((prev) => [alert, ...prev]);
+
+    try {
+      const savedItem = await incomeService.createIncome(userId, {
+        id: tempId,
+        source: item.source,
+        amount: item.amount,
+        category: item.category,
+        date: item.date,
+        description: item.description,
+        isRecurring: item.isRecurring
+      });
+
+      setIncomes((prev) =>
+        prev.map((i) => (i.id === tempId ? savedItem : i))
+      );
+      showToast(`Inward flow from "${item.source}" recorded.`, 'success');
+    } catch (err: any) {
+      console.error('[AddIncome] Save failed, rolling back:', err);
+      setIncomes(originalIncomes);
+      setNotifications(originalNotifications);
+      showToast(err.message || 'Failed to save income. State reverted.', 'error');
+    } finally {
+      setIsIncomeSaving(false);
+    }
   };
 
-  const handleEditIncome = (revised: IncomeItem) => {
-    setIncomes((prev) => prev.map(item => item.id === revised.id ? revised : item));
+  const handleEditIncome = async (revised: IncomeItem) => {
+    if (isIncomeSaving) return;
+    
+    const originalItem = incomes.find((item) => item.id === revised.id);
+    if (!originalItem) return;
+
+    const delta: Partial<IncomeItem> = {};
+    if (revised.source !== originalItem.source) delta.source = revised.source;
+    if (revised.amount !== originalItem.amount) delta.amount = revised.amount;
+    if (revised.category !== originalItem.category) delta.category = revised.category;
+    if (revised.date !== originalItem.date) delta.date = revised.date;
+    if (revised.description !== originalItem.description) delta.description = revised.description;
+    if (revised.isRecurring !== originalItem.isRecurring) delta.isRecurring = revised.isRecurring;
+
+    if (Object.keys(delta).length === 0) {
+      return;
+    }
+
+    setIsIncomeSaving(true);
+    const originalIncomes = [...incomes];
+
+    // Optimistic UI update
+    setIncomes((prev) =>
+      prev.map((i) => (i.id === revised.id ? revised : i))
+    );
+
+    try {
+      const updatedItem = await incomeService.updateIncome(userId, revised.id, delta);
+      setIncomes((prev) =>
+        prev.map((i) => (i.id === revised.id ? updatedItem : i))
+      );
+      showToast(`Revenue entry updated successfully.`, 'success');
+    } catch (err: any) {
+      console.error('[EditIncome] Update failed, rolling back:', err);
+      setIncomes(originalIncomes);
+      showToast(err.message || 'Failed to update income. State reverted.', 'error');
+    } finally {
+      setIsIncomeSaving(false);
+    }
   };
 
-  const handleDeleteIncome = (id: string) => {
-    setIncomes((prev) => prev.filter(item => item.id !== id));
+  const handleDeleteIncome = async (id: string) => {
+    if (isIncomeSaving) return;
+    setIsIncomeSaving(true);
+
+    const originalIncomes = [...incomes];
+
+    // Optimistic UI update
+    setIncomes((prev) => prev.filter((item) => item.id !== id));
+
+    try {
+      await incomeService.deleteIncome(userId, id);
+      showToast(`Revenue entry deleted.`, 'success');
+    } catch (err: any) {
+      console.error('[DeleteIncome] Delete failed, rolling back:', err);
+      setIncomes(originalIncomes);
+      showToast(err.message || 'Failed to delete income. State reverted.', 'error');
+    } finally {
+      setIsIncomeSaving(false);
+    }
   };
 
   // State Modifiers for Debits
@@ -755,6 +840,7 @@ function MainApp() {
                   onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
                   onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
                   onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget}
+                  isIncomeSaving={isIncomeSaving}
                 />
               )}
 
@@ -899,6 +985,28 @@ function MainApp() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl border backdrop-blur-xl shadow-2xl ${
+              toast.type === 'error'
+                ? 'bg-rose-950/85 border-rose-500/30 text-rose-200'
+                : 'bg-emerald-950/85 border-emerald-500/30 text-emerald-200'
+            }`}
+          >
+            {toast.type === 'error' ? (
+              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            ) : (
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+            )}
+            <span className="text-xs font-semibold font-sans">{toast.message}</span>
+          </motion.div>
         )}
       </AnimatePresence>
 
