@@ -205,7 +205,7 @@ export const ProfilePanel: React.FC<ViewProps> = ({ profile, userId, onUpdatePro
 };
 
 export const SettingsPanel: React.FC = () => {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, resolved, setTheme, toggleTheme } = useTheme();
   const [securityOn, setSecurityOn] = useState(true);
   const [soundsOn, setSoundsOn] = useState(false);
 
@@ -224,23 +224,27 @@ export const SettingsPanel: React.FC = () => {
           {/* Theme switcher connecting directly to persistent context */}
           <div className="flex items-center justify-between py-4">
             <div>
-              <h5 className="text-xs font-bold text-white">Interactive Theme Mode</h5>
-              <p className="text-[10px] text-slate-400">Switch current presentation between Light & Dark modes respectively</p>
+              <h5 className="text-xs font-bold text-white">Theme Mode</h5>
+              <p className="text-[10px] text-slate-400">Switch between Light, Dark, and System-detected modes</p>
             </div>
-            <button 
-              onClick={toggleTheme}
-              className="p-2 rounded-xl bg-white/5 border border-white/10 hover:border-indigo-500/30 text-indigo-400 flex items-center gap-2 text-xs font-mono"
-            >
-              {theme === 'dark' ? (
-                <>
-                  <Moon className="w-4 h-4" /> SECURE_DARK_MODE
-                </>
-              ) : (
-                <>
-                  <Sun className="w-4 h-4 text-amber-500" /> STYLIZED_LIGHT_MODE
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              {(['dark', 'light', 'system'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setTheme(mode)}
+                  className={`p-2 rounded-xl border text-xs font-mono flex items-center gap-1.5 transition-all ${
+                    theme === mode
+                      ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300'
+                      : 'bg-white/5 border-white/10 text-slate-500 hover:border-white/20'
+                  }`}
+                >
+                  {mode === 'dark' && <Moon className="w-3.5 h-3.5" />}
+                  {mode === 'light' && <Sun className="w-3.5 h-3.5" />}
+                  {mode === 'system' && <Sliders className="w-3.5 h-3.5" />}
+                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Security setting */}

@@ -82,4 +82,4 @@ export interface ChatMessage {
   insights?: string[];
 }
 
-export type AppTheme = 'dark' | 'light';
+export type AppTheme = 'dark' | 'light' | 'system';

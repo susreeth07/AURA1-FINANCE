@@ -102,10 +102,8 @@ export const profileService = {
       
       const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-          user_id: userId,
-          ...dbPayload
-        })
+        .update(dbPayload)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -131,10 +129,8 @@ export const profileService = {
 
       const { data, error } = await supabase
         .from('profiles')
-        .upsert({
-          user_id: userId,
-          ...dbPayload
-        })
+        .update(dbPayload)
+        .eq('user_id', userId)
         .select()
         .single();
 

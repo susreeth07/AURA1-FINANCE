@@ -195,18 +195,27 @@ export const ThreeGlobe: React.FC = () => {
     const animate = () => {
       const elapsedTime = clock.getElapsedTime();
 
-      // Smooth lag target tracking
-      targetX += (mouseX - targetX) * 0.05;
-      targetY += (mouseY - targetY) * 0.05;
+      // Smooth inertia-based lag target tracking
+      targetX += (mouseX - targetX) * 0.04;
+      targetY += (mouseY - targetY) * 0.04;
 
-      // Rotate Globe, Core and Nodes
-      globeMesh.rotation.y = elapsedTime * 0.06;
-      globeMesh.rotation.x = elapsedTime * 0.02;
+      // Floating Y-axis animation (gentle bob)
+      const floatY = Math.sin(elapsedTime * 0.5) * 0.08;
 
-      innerMesh.rotation.y = -elapsedTime * 0.03;
+      // Rotate Globe wireframe with mouse tracking + idle rotation
+      globeMesh.rotation.y = elapsedTime * 0.06 + targetX * 0.4;
+      globeMesh.rotation.x = elapsedTime * 0.02 + targetY * 0.3;
+      globeMesh.position.y = floatY;
 
+      // Inner core with counter-rotation + mouse tracking
+      innerMesh.rotation.y = -elapsedTime * 0.03 + targetX * 0.3;
+      innerMesh.rotation.x = targetY * 0.2;
+      innerMesh.position.y = floatY;
+
+      // Node group with mouse tracking + idle rotation
       nodeGroup.rotation.y = elapsedTime * 0.05 + targetX * 0.5;
       nodeGroup.rotation.x = elapsedTime * 0.015 + targetY * 0.5;
+      nodeGroup.position.y = floatY;
 
       starParticles.rotation.y = elapsedTime * 0.04;
       starParticles.rotation.z = elapsedTime * 0.01;
@@ -277,7 +286,7 @@ export const ThreeGlobe: React.FC = () => {
   }
 
   return (
-    <div className="w-full h-full relative" id="threejs-container">
+    <div className="w-full h-full relative pointer-events-none" id="threejs-container">
       <div ref={mountRef} className="w-full h-full absolute inset-0" />
       {/* Absolute indicators detailing quantum parameters */}
       <div className="absolute bottom-4 left-4 font-mono text-[9px] text-indigo-400/40 tracking-wider flex items-center gap-2">

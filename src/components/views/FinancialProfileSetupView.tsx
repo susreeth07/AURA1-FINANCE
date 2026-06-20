@@ -10,20 +10,62 @@ interface SetupProps {
   onComplete: (profile: UserProfile) => void;
 }
 
+// Helper to get initial form data with dynamic suggestions based on onboarding step and salary
+const getInitialFormData = (profile: UserProfile) => {
+  const onboardingStep = profile.onboardingStep || 1;
+
+  // Step 1 defaults/saved values
+  const monthlySalary = onboardingStep > 1 
+    ? (profile.monthlySalary ?? 0) 
+    : (profile.monthlySalary || 7500);
+    
+  const additionalIncome = onboardingStep > 1 
+    ? (profile.additionalIncome ?? 0) 
+    : (profile.additionalIncome || 1200);
+
+  // Step 2 defaults/saved values (Scale defaults down based on monthlySalary if salary is low)
+  const rent = onboardingStep > 2 
+    ? (profile.rent ?? 0) 
+    : Math.round(Math.min(1800, monthlySalary * 0.25));
+    
+  const fixedExpenses = onboardingStep > 2 
+    ? (profile.fixedExpenses ?? 0) 
+    : Math.round(Math.min(700, monthlySalary * 0.10));
+    
+  const monthlyBills = onboardingStep > 2 
+    ? (profile.monthlyBills ?? 0) 
+    : Math.round(Math.min(350, monthlySalary * 0.05));
+    
+  const emiLoans = onboardingStep > 2 
+    ? (profile.emiLoans ?? 0) 
+    : Math.round(Math.min(450, monthlySalary * 0.05));
+
+  // Step 3 defaults/saved values (Scale defaults down so they never exceed monthlySalary)
+  const currentSavings = onboardingStep > 3 
+    ? (profile.currentSavings ?? 0) 
+    : Math.round(Math.min(24500, monthlySalary * 0.50));
+    
+  const savingsGoalPercentage = onboardingStep > 3 
+    ? (profile.savingsGoalPercentage ?? 20) 
+    : (profile.savingsGoalPercentage || 20);
+
+  return {
+    name: profile.name || '',
+    email: profile.email || '',
+    monthlySalary,
+    additionalIncome,
+    currentSavings,
+    rent,
+    fixedExpenses,
+    monthlyBills,
+    emiLoans,
+    savingsGoalPercentage
+  };
+};
+
 export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, userId, onComplete }) => {
   const [step, setStep] = useState<number>(userProfile.onboardingStep || 1);
-  const [formData, setFormData] = useState({
-    name: userProfile.name || '',
-    email: userProfile.email || '',
-    monthlySalary: userProfile.monthlySalary || 7500,
-    additionalIncome: userProfile.additionalIncome || 1200,
-    currentSavings: userProfile.currentSavings || 24500,
-    rent: userProfile.rent || 1800,
-    fixedExpenses: userProfile.fixedExpenses || 700,
-    monthlyBills: userProfile.monthlyBills || 350,
-    emiLoans: userProfile.emiLoans || 450,
-    savingsGoalPercentage: userProfile.savingsGoalPercentage || 20
-  });
+  const [formData, setFormData] = useState(() => getInitialFormData(userProfile));
 
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
@@ -33,22 +75,45 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
   useEffect(() => {
     if (userProfile.onboardingStep && !touched.onboardingStepSynced) {
       setStep(userProfile.onboardingStep);
-      setFormData(prev => ({
-        ...prev,
-        name: userProfile.name || prev.name,
-        email: userProfile.email || prev.email,
-        monthlySalary: userProfile.monthlySalary || prev.monthlySalary,
-        additionalIncome: userProfile.additionalIncome || prev.additionalIncome,
-        currentSavings: userProfile.currentSavings || prev.currentSavings,
-        rent: userProfile.rent || prev.rent,
-        fixedExpenses: userProfile.fixedExpenses || prev.fixedExpenses,
-        monthlyBills: userProfile.monthlyBills || prev.monthlyBills,
-        emiLoans: userProfile.emiLoans || prev.emiLoans,
-        savingsGoalPercentage: userProfile.savingsGoalPercentage || prev.savingsGoalPercentage
-      }));
+      setFormData(getInitialFormData(userProfile));
       setTouched(prev => ({ ...prev, onboardingStepSynced: true }));
     }
   }, [userProfile]);
+
+  // Dynamically adjust defaults if salary changes and subsequent fields haven't been touched yet
+  useEffect(() => {
+    const salary = Number(formData.monthlySalary) || 0;
+    setFormData(prev => {
+      const updates: any = {};
+      if (!touched.rent) {
+        updates.rent = Math.round(Math.min(1800, salary * 0.25));
+      }
+      if (!touched.fixedExpenses) {
+        updates.fixedExpenses = Math.round(Math.min(700, salary * 0.10));
+      }
+      if (!touched.monthlyBills) {
+        updates.monthlyBills = Math.round(Math.min(350, salary * 0.05));
+      }
+      if (!touched.emiLoans) {
+        updates.emiLoans = Math.round(Math.min(450, salary * 0.05));
+      }
+      if (!touched.currentSavings) {
+        updates.currentSavings = Math.round(Math.min(24500, salary * 0.50));
+      }
+      
+      let changed = false;
+      for (const key in updates) {
+        if (updates[key] !== prev[key]) {
+          changed = true;
+          break;
+        }
+      }
+      if (changed) {
+        return { ...prev, ...updates };
+      }
+      return prev;
+    });
+  }, [formData.monthlySalary]);
 
   // Compute validation errors in real-time
   const errors = useMemo(() => {
@@ -248,13 +313,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-indigo-500 font-mono ${
-                    errors.monthlySalary && touched.monthlySalary ? 'border-rose-500/50' : 'border-white/5'
+                    errors.monthlySalary ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.monthlySalary}
                   onChange={(e) => handleUpdate('monthlySalary', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.monthlySalary && touched.monthlySalary && (
+              {errors.monthlySalary && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.monthlySalary}</p>
               )}
               <p className="text-[10px] text-slate-500 mt-1.5">Primary baseline paystub from contracts.</p>
@@ -267,13 +332,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-indigo-500 font-mono ${
-                    errors.additionalIncome && touched.additionalIncome ? 'border-rose-500/50' : 'border-white/5'
+                    errors.additionalIncome ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.additionalIncome}
                   onChange={(e) => handleUpdate('additionalIncome', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.additionalIncome && touched.additionalIncome && (
+              {errors.additionalIncome && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.additionalIncome}</p>
               )}
               <p className="text-[10px] text-slate-500 mt-1.5">Dividends, consulting, and side hustles.</p>
@@ -316,13 +381,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-pink-500 font-mono ${
-                    errors.rent && touched.rent ? 'border-rose-500/50' : 'border-white/5'
+                    errors.rent ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.rent}
                   onChange={(e) => handleUpdate('rent', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.rent && touched.rent && (
+              {errors.rent && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.rent}</p>
               )}
             </div>
@@ -334,13 +399,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-pink-500 font-mono ${
-                    errors.emiLoans && touched.emiLoans ? 'border-rose-500/50' : 'border-white/5'
+                    errors.emiLoans ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.emiLoans}
                   onChange={(e) => handleUpdate('emiLoans', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.emiLoans && touched.emiLoans && (
+              {errors.emiLoans && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.emiLoans}</p>
               )}
             </div>
@@ -352,13 +417,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-pink-500 font-mono ${
-                    errors.fixedExpenses && touched.fixedExpenses ? 'border-rose-500/50' : 'border-white/5'
+                    errors.fixedExpenses ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.fixedExpenses}
                   onChange={(e) => handleUpdate('fixedExpenses', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.fixedExpenses && touched.fixedExpenses && (
+              {errors.fixedExpenses && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.fixedExpenses}</p>
               )}
             </div>
@@ -370,13 +435,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-pink-500 font-mono ${
-                    errors.monthlyBills && touched.monthlyBills ? 'border-rose-500/50' : 'border-white/5'
+                    errors.monthlyBills ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.monthlyBills}
                   onChange={(e) => handleUpdate('monthlyBills', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.monthlyBills && touched.monthlyBills && (
+              {errors.monthlyBills && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.monthlyBills}</p>
               )}
             </div>
@@ -419,13 +484,13 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
                 <input 
                   type="number"
                   className={`w-full pl-11 pr-4 py-3.5 rounded-xl border bg-white/5 outline-none text-sm text-white focus:border-purple-500 font-mono ${
-                    errors.currentSavings && touched.currentSavings ? 'border-rose-500/50' : 'border-white/5'
+                    errors.currentSavings ? 'border-rose-500/50' : 'border-white/5'
                   }`}
                   value={formData.currentSavings}
                   onChange={(e) => handleUpdate('currentSavings', e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
-              {errors.currentSavings && touched.currentSavings && (
+              {errors.currentSavings && (
                 <p className="text-rose-400 text-[10px] mt-1.5 font-mono">{errors.currentSavings}</p>
               )}
               <p className="text-[10px] text-slate-500 mt-1.5">Liquid accounts, cash reservoirs, high interest vaults.</p>

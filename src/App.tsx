@@ -37,7 +37,7 @@ import { INITIAL_USER_PROFILE } from './mockData';
 import { UserProfile, IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillReminder, SystemNotification } from './types';
 
 function MainApp() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, resolved, toggleTheme } = useTheme();
 
   // 1. Root Animation States
   const [initLoading, setInitLoading] = useState(true);
@@ -898,9 +898,10 @@ function MainApp() {
                 {/* Quick theme toggles */}
                 <button 
                   onClick={toggleTheme}
+                  title={`Theme: ${theme} (click to cycle)`}
                   className="p-2 rounded-lg bg-white/5 text-indigo-400 hover:text-white transition-colors border border-white/10"
                 >
-                  {theme === 'dark' ? <Sun className="w-4 h-4 text-pink-400" /> : <Moon className="w-4 h-4 text-indigo-500" />}
+                  {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : theme === 'light' ? <Sun className="w-4 h-4 text-amber-400" /> : <Sliders className="w-4 h-4 text-emerald-400" />}
                 </button>
                 <div className="hidden md:flex items-center gap-2 font-mono text-3xs text-slate-500">
                   <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
