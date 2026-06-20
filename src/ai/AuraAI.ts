@@ -59,7 +59,8 @@ export class AuraAI {
       readonly conversationId?: string;
       readonly sessionId?: string;
       readonly formattingStyle?: FormattingStyle;
-      readonly providerId?: 'gemini' | 'mock';
+      readonly correlationId?: string;
+      readonly modelOverride?: string;
     }
   ): Promise<AuraResponse> {
     if (!AuraAI.initialized) {
