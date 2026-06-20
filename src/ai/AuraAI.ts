@@ -7,6 +7,7 @@ import { ConversationManager } from './ConversationManager';
 import { AICache } from './AICache';
 import { FormattingStyle } from './ResponseFormatter';
 import { LLMProvider } from './providers/LLMProvider';
+import { logger } from '../utils/logger';
 
 // Tools Imports
 import { AnalyticsTool } from './tools/AnalyticsTool';
@@ -49,7 +50,7 @@ export class AuraAI {
     AuraAI.service = new AuraAIService(providerOverride);
     AuraAI.initialized = true;
 
-    console.log(`[AuraAI] Facade client initialized successfully under profile: ${profile}`);
+    logger.debug(`[AuraAI] Facade client initialized successfully under profile: ${profile}`);
   }
 
   static async query(
@@ -89,6 +90,6 @@ export class AuraAI {
     ToolRegistry.clear();
     AuraAI.service = null;
     AuraAI.initialized = false;
-    console.log('[AuraAI] Facade client shut down.');
+    logger.debug('[AuraAI] Facade client shut down.');
   }
 }

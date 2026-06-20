@@ -25,6 +25,45 @@ export class MockProvider implements LLMProvider, StreamingProvider, ToolCalling
     const promptLower = prompt.toLowerCase();
     await new Promise((resolve) => setTimeout(resolve, 50));
 
+    if (promptLower.includes('financial report') || promptLower.includes('executive summary') || promptLower.includes('report-specific') || promptLower.includes('report')) {
+      const summaryPayload = {
+        headline: "Financial Stability Maintained with Solid Surplus Accumulation",
+        overview: "This executive financial report reviews your overall cash flow, expense allocations, and progress towards compound savings goals. Overall indicators show strong budget compliance.",
+        achievements: [
+          "Increased overall net savings rate by 8.5% compared to the historical baseline.",
+          "Maintained 100% budget adherence across discretionary categories.",
+          "Runway timeline lengthened by 0.5 months due to reduced fixed expenses."
+        ],
+        risks: [
+          "Discretionary spending in dining out shows a minor upward trend (up 4.2% week-over-week).",
+          "Inflation-adjusted bills could reduce the savings rate in the coming winter months."
+        ],
+        opportunities: [
+          "Reallocate ₹5,000 from current low-interest savings into high-yield accounts.",
+          "Consolidate outstanding EMI plans to save on interest rates."
+        ],
+        recommendations: [
+          "Cap food dining budget at ₹4,000 next month to prevent creep.",
+          "Initiate a monthly recurring auto-deposit to your Retirement Goal."
+        ],
+        warnings: [
+          "Discretionary limits are near 90% allocation in the current weekly cycle."
+        ],
+        confidenceLevel: "High"
+      };
+
+      return JSON.stringify({
+        answer: JSON.stringify(summaryPayload),
+        confidence: { level: 'High', score: 0.95 },
+        reasoning: ["Parsed financial metrics for report generation", "Analyzed goals and category spends"],
+        insights: ["Net income is positive", "No critical alerts generated"],
+        recommendations: ["Maintain current allocations"],
+        warnings: [],
+        followUpQuestions: ["Generate next month's forecast?"],
+        citations: ["AnalyticsContext", "FinancialMath"]
+      });
+    }
+
     if (promptLower.includes('budget') || promptLower.includes('spend')) {
       return JSON.stringify({
         answer: "Based on your budget analysis, you have spent ₹4,200 on Food and Dining out of a ₹5,000 limit. This represents 84% utilization. You are approaching your threshold limit.",

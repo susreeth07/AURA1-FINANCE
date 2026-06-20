@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, Filter, ArrowUpDown, ChevronRight, Eye, X, 
@@ -9,11 +9,13 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, PieChart, Pie, Cell, RadialBarChart, RadialBar, Legend 
 } from 'recharts';
 import { IncomeItem, ExpenseItem, BudgetItem } from '../../types';
+import { AuraAI } from '../../ai/AuraAI';
 
 interface ViewProps {
   incomes: IncomeItem[];
   expenses: ExpenseItem[];
   budgets: BudgetItem[];
+  userId?: string;
 }
 
 export const TransactionsPanel: React.FC<ViewProps> = ({ incomes, expenses }) => {
@@ -222,7 +224,31 @@ export const TransactionsPanel: React.FC<ViewProps> = ({ incomes, expenses }) =>
   );
 };
 
-export const ReportsPanel: React.FC<ViewProps> = ({ incomes, expenses, budgets }) => {
+export const ReportsPanel: React.FC<ViewProps> = ({ incomes, expenses, budgets, userId }) => {
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+    
+    const fetchSummary = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await AuraAI.query(userId, "Based on my income, expenses, and budgets, provide a concise 2-3 sentence analytical summary of my financial report with specific diagnostic insights and actionable recommendations.");
+        setAiSummary(res.answer);
+      } catch (err: any) {
+        console.error("Failed to fetch reports AI summary:", err);
+        setError(err.message || "Failed to generate report diagnostics.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSummary();
+  }, [userId, incomes.length, expenses.length, budgets.length]);
+
   // Aggregate math
   const totalInflow = incomes.reduce((sum, item) => sum + item.amount, 0);
   const totalOutflow = expenses.reduce((sum, item) => sum + item.amount, 0);
@@ -358,9 +384,21 @@ export const ReportsPanel: React.FC<ViewProps> = ({ incomes, expenses, budgets }
           <Sparkles className="w-4 h-4 text-indigo-400" />
           <span className="text-xs font-mono font-bold text-white uppercase tracking-wider">Aura Analytical Diagnostic report</span>
         </div>
-        <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
-          Based on the structural comparison metrics, your category spending patterns show extremely high compliance in utilities and health vectors. However, discretionary dinner overlays represents the highest threat to stashing targets. We recommend clipping dining budgets by 10% next month, which will immediately lock ₹45 surplus resources to compound goals.
-        </p>
+        {loading ? (
+          <div className="space-y-2 animate-pulse">
+            <div className="h-3.5 bg-indigo-500/10 rounded w-5/6"></div>
+            <div className="h-3.5 bg-indigo-500/10 rounded w-full"></div>
+            <div className="h-3.5 bg-indigo-500/10 rounded w-2/3"></div>
+          </div>
+        ) : error ? (
+          <p className="text-xs text-rose-300 font-mono leading-relaxed">
+            ⚠ {error}
+          </p>
+        ) : (
+          <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+            {aiSummary || "No diagnostic summary compiled yet. Add transactions to generate dynamic reports."}
+          </p>
+        )}
       </div>
 
     </div>

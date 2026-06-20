@@ -1,348 +1,526 @@
-import React from 'react';
-import { motion } from 'motion/react';
-import { 
-  TrendingUp, TrendingDown, ShieldAlert, Sparkles, AlertCircle, Calendar, 
-  ArrowUpRight, Target, Award, BrainCircuit, Landmark, Wallet, Percent, CircleDot 
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  Sliders, RefreshCw, LayoutGrid, ChevronDown, ChevronUp, Eye, EyeOff,
+  Sparkles, TrendingUp, TrendingDown, ShieldCheck, Target, AlertCircle,
+  ArrowUpRight, Activity, Landmark, Wallet, Plus
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area, 
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell 
+import {
+  ResponsiveContainer, BarChart, Bar, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell,
+  RadialBarChart, RadialBar
 } from 'recharts';
-import { IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillReminder, UserProfile } from '../../types';
+import { IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillReminder, UserProfile, SystemNotification } from '../../types';
+
+// Lazy-load heavy widget components
+const FinancialHealthScoreCard = lazy(() =>
+  import('../dashboard/FinancialHealthScoreCard')
+);
+const AIMonthlySummaryCard = lazy(() =>
+  import('../dashboard/AIMonthlySummaryCard')
+);
+const SpendingInsightsCard = lazy(() =>
+  import('../dashboard/SpendingInsightsCard')
+);
+const BudgetHealthCard = lazy(() =>
+  import('../dashboard/BudgetHealthCard').then(m => ({ default: m.BudgetHealthCard }))
+);
+const CashFlowCard = lazy(() =>
+  import('../dashboard/CashFlowCard').then(m => ({ default: m.CashFlowCard }))
+);
+const ForecastCard = lazy(() =>
+  import('../dashboard/ForecastCard').then(m => ({ default: m.ForecastCard }))
+);
+const GoalProgressCard = lazy(() =>
+  import('../dashboard/GoalProgressCard').then(m => ({ default: m.GoalProgressCard }))
+);
+const SmartAlertsCard = lazy(() =>
+  import('../dashboard/SmartAlertsCard').then(m => ({ default: m.SmartAlertsCard }))
+);
+const DashboardPersonalizationPanel = lazy(() =>
+  import('../dashboard/DashboardPersonalizationPanel').then(m => ({ default: m.DashboardPersonalizationPanel }))
+);
+
+// Widget configuration types
+interface WidgetConfig {
+  id: string;
+  label: string;
+  isVisible: boolean;
+  isPinned: boolean;
+  order: number;
+}
+
+const DEFAULT_WIDGETS: WidgetConfig[] = [
+  { id: 'health',    label: 'Financial Health Score', isVisible: true,  isPinned: true,  order: 0 },
+  { id: 'ai-summary',label: 'Monthly AI Summary',     isVisible: true,  isPinned: false, order: 1 },
+  { id: 'kpi',       label: 'KPI Cards',              isVisible: true,  isPinned: true,  order: 2 },
+  { id: 'charts',    label: 'Income vs Expense Chart', isVisible: true,  isPinned: false, order: 3 },
+  { id: 'cashflow',  label: 'Cash Flow',              isVisible: true,  isPinned: false, order: 4 },
+  { id: 'spending',  label: 'Spending Insights',      isVisible: true,  isPinned: false, order: 5 },
+  { id: 'budget',    label: 'Budget Health',          isVisible: true,  isPinned: false, order: 6 },
+  { id: 'forecast',  label: 'Financial Forecast',     isVisible: true,  isPinned: false, order: 7 },
+  { id: 'goals',     label: 'Goal Progress',          isVisible: true,  isPinned: false, order: 8 },
+  { id: 'alerts',    label: 'Smart Alerts',           isVisible: true,  isPinned: false, order: 9 },
+];
+
+const LAYOUT_KEY = 'aura-dashboard-layout';
+
+function loadLayout(): WidgetConfig[] {
+  try {
+    const raw = localStorage.getItem(LAYOUT_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return DEFAULT_WIDGETS;
+}
+
+// Skeleton card for lazy loading
+const WidgetSkeleton = React.memo(() => (
+  <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5 space-y-3">
+    <div className="flex items-center justify-between">
+      <div className="skeleton-text w-32 h-3" />
+      <div className="skeleton w-6 h-6 rounded-lg" />
+    </div>
+    <div className="skeleton-text w-full h-2" />
+    <div className="skeleton-text w-3/4 h-2" />
+    <div className="skeleton-text w-1/2 h-2" />
+    <div className="skeleton w-full h-16 rounded-xl" />
+  </div>
+));
+WidgetSkeleton.displayName = 'WidgetSkeleton';
+
+// Custom tooltip for charts
+const CustomTooltip = React.memo<{ active?: boolean; payload?: any[]; label?: string }>(
+  ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-slate-950/95 border border-white/10 rounded-xl px-3 py-2 text-xs shadow-2xl">
+        <p className="text-slate-400 mb-1 font-mono">{label}</p>
+        {payload.map((p: any, i: number) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
+            <span className="text-slate-300">{p.name}:</span>
+            <span className="text-white font-bold">₹{(p.value || 0).toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+);
+CustomTooltip.displayName = 'CustomTooltip';
+
+// KPI Summary card
+const KPICard = React.memo<{
+  label: string; value: string; subtext?: string;
+  icon: React.ReactNode; color: string; trend?: 'up' | 'down' | 'neutral';
+  onClick?: () => void;
+}>(({ label, value, subtext, icon, color, trend, onClick }) => (
+  <motion.div
+    whileHover={{ scale: 1.02, y: -2 }}
+    onClick={onClick}
+    className={`bg-slate-900/50 border border-white/5 rounded-2xl p-5 cursor-pointer hover:border-white/10 transition-all ${onClick ? 'cursor-pointer' : ''}`}
+  >
+    <div className="flex items-start justify-between mb-3">
+      <div className={`p-2.5 rounded-xl`} style={{ background: `${color}15` }}>
+        <span style={{ color }}>{icon}</span>
+      </div>
+      {trend && (
+        <span className={`text-[10px] font-mono flex items-center gap-0.5 ${
+          trend === 'up' ? 'text-emerald-400' : trend === 'down' ? 'text-rose-400' : 'text-slate-400'
+        }`}>
+          {trend === 'up' ? <TrendingUp className="w-3 h-3" /> : trend === 'down' ? <TrendingDown className="w-3 h-3" /> : null}
+          {trend === 'up' ? '+' : trend === 'down' ? '-' : '~'}
+        </span>
+      )}
+    </div>
+    <p className="text-2xl font-black text-white tracking-tight">{value}</p>
+    <p className="text-xs font-medium text-slate-400 mt-0.5">{label}</p>
+    {subtext && <p className="text-[10px] text-slate-500 font-mono mt-1">{subtext}</p>}
+  </motion.div>
+));
+KPICard.displayName = 'KPICard';
 
 interface DashboardProps {
   profile: UserProfile;
+  userId: string;
   incomes: IncomeItem[];
   expenses: ExpenseItem[];
   budgets: BudgetItem[];
   goals: SavingsGoal[];
   reminders: BillReminder[];
+  notifications: SystemNotification[];
   onNavigate: (view: any) => void;
   onShowSalaryUpdate: () => void;
+  onMarkNotificationRead: (id: string) => void;
+  onClearNotification: (id: string) => void;
 }
 
-export const DashboardView: React.FC<DashboardProps> = ({
-  profile, incomes, expenses, budgets, goals, reminders, onNavigate, onShowSalaryUpdate
-}) => {
-  // 1. Core Financial Card variables
-  const totalIncome = incomes.reduce((sum, item) => sum + item.amount, 0);
-  const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
-  const currentBalance = totalIncome - totalExpenses;
-  const totalSavings = profile.currentSavings;
-  
-  // Calculate dynamic Health Score (factors liquid savings ratio vs overheads)
-  const monthlyFixedOutflow = profile.rent + profile.fixedExpenses + profile.monthlyBills + profile.emiLoans;
-  const coverageRatio = monthlyFixedOutflow > 0 ? (totalSavings / monthlyFixedOutflow) : 10;
-  const healthScore = Math.min(Math.round((coverageRatio / 6) * 100), 100); // 6 months coverage is 100%
+export const DashboardView = React.memo<DashboardProps>((props) => {
+  const {
+    profile, userId, incomes, expenses, budgets, goals,
+    notifications, onNavigate, onMarkNotificationRead, onClearNotification
+  } = props;
 
-  // 2. Mock static datasets representing trends for professional visual design
-  const incomeVsExpenseData = [
-    { name: 'Jan', Income: 7200, Expense: 2100 },
-    { name: 'Feb', Income: 7200, Expense: 1800 },
-    { name: 'Mar', Income: 7500, Expense: 2400 },
-    { name: 'Apr', Income: 7500, Expense: 2900 },
-    { name: 'May', Income: 7500, Expense: 2700 },
-    { name: 'Jun', Income: totalIncome, Expense: totalExpenses },
-  ];
+  const [widgets, setWidgets] = useState<WidgetConfig[]>(loadLayout);
+  const [collapsedWidgets, setCollapsedWidgets] = useState<Set<string>>(new Set());
+  const [showPersonalization, setShowPersonalization] = useState(false);
+  const [chartsLoaded, setChartsLoaded] = useState(false);
 
-  const savingsTrendData = [
-    { name: 'Jan', Savings: 12000 },
-    { name: 'Feb', Savings: 14500 },
-    { name: 'Mar', Savings: 18000 },
-    { name: 'Apr', Savings: 20500 },
-    { name: 'May', Savings: 22000 },
-    { name: 'Jun', Savings: totalSavings },
-  ];
+  // Defer chart rendering for faster initial load
+  useEffect(() => {
+    const t = setTimeout(() => setChartsLoaded(true), 300);
+    return () => clearTimeout(t);
+  }, []);
 
-  // Category analysis builder
-  const categoriesMap: { [key: string]: number } = {};
-  expenses.forEach(e => {
-    categoriesMap[e.category] = (categoriesMap[e.category] || 0) + e.amount;
-  });
-  const pieColors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#14b8a6', '#a855f7', '#6b7280'];
-  const pieData = Object.keys(categoriesMap).map((cat, idx) => ({
-    name: cat,
-    value: categoriesMap[cat],
-    color: pieColors[idx % pieColors.length]
-  }));
+  // Memoized financial computations
+  const totalIncome = useMemo(() => incomes.reduce((s, i) => s + i.amount, 0), [incomes]);
+  const totalExpenses = useMemo(() => expenses.reduce((s, e) => s + e.amount, 0), [expenses]);
+  const netBalance = useMemo(() => totalIncome - totalExpenses, [totalIncome, totalExpenses]);
+  const savingsRate = useMemo(() =>
+    totalIncome > 0 ? Math.round(((totalIncome - totalExpenses) / totalIncome) * 100) : 0,
+    [totalIncome, totalExpenses]
+  );
 
-  // Predict end of month prediction
-  const monthlyPrediction = Math.round(totalIncome * 0.94 - totalExpenses * 0.98);
+  const healthScore = useMemo(() => {
+    const monthlyFixed = profile.rent + profile.fixedExpenses + profile.monthlyBills + profile.emiLoans;
+    const coverageRatio = monthlyFixed > 0 ? profile.currentSavings / monthlyFixed : 10;
+    return Math.min(Math.round((coverageRatio / 6) * 100), 100);
+  }, [profile]);
 
-  return (
-    <div className="space-y-8">
-      
-      {/* HEADER BAR DETAILS */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-900/40 p-6 rounded-2xl border border-white/5">
-        <div>
-          <h2 className="text-xl font-extrabold text-white">Quantum Ledger Node</h2>
-          <p className="text-xs text-slate-400">Principal email: <span className="font-mono text-indigo-400">{profile.email}</span></p>
-        </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={onShowSalaryUpdate}
-            className="px-4 py-2 text-xs font-bold rounded-xl border border-white/10 text-slate-300 hover:text-white bg-white/5 transition-all text-center flex items-center gap-2"
-          >
-            <Percent className="w-3.5 h-3.5" /> Adjust Salary Index
-          </button>
-          <button 
-            onClick={() => onNavigate('ai')}
-            className="px-4 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-all flex items-center gap-2"
-          >
-            <BrainCircuit className="w-3.5 h-3.5" /> Speak Aura AI
-          </button>
-        </div>
-      </div>
+  // Build real chart data from transactions
+  const incomeVsExpenseData = useMemo(() => {
+    const months: Record<string, { income: number; expense: number }> = {};
+    const now = new Date();
 
-      {/* CORE INTENSITY STAT CARDS */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        {/* Total Inflow */}
-        <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-2xs font-mono uppercase tracking-wider">Total Inflows</span>
-            <TrendingUp className="w-4 h-4 text-emerald-400" />
-          </div>
-          <p className="text-xl font-black text-white">₹{totalIncome.toLocaleString()}</p>
-          <p className="text-[10px] text-emerald-400 font-mono mt-2">▲ +14.2% trajectory</p>
-        </div>
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+      months[key] = { income: 0, expense: 0 };
+    }
 
-        {/* Total Expenses */}
-        <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-2xs font-mono uppercase tracking-wider">Active Debits</span>
-            <TrendingDown className="w-4 h-4 text-rose-400" />
-          </div>
-          <p className="text-xl font-black text-white">₹{totalExpenses.toLocaleString()}</p>
-          <p className="text-[10px] text-rose-400 font-mono mt-2">▼ Committed overheads</p>
-        </div>
+    incomes.forEach(item => {
+      const d = new Date(item.date);
+      const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+      if (months[key] !== undefined) months[key].income += item.amount;
+    });
 
-        {/* Current Balance */}
-        <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-2xs font-mono uppercase tracking-wider">Liquid Balance</span>
-            <Wallet className="w-4 h-4 text-indigo-400" />
-          </div>
-          <p className="text-xl font-black text-indigo-400">₹{currentBalance.toLocaleString()}</p>
-          <p className="text-[10px] text-indigo-400 font-mono mt-2">Yield buffer secure</p>
-        </div>
+    expenses.forEach(item => {
+      const d = new Date(item.date);
+      const key = d.toLocaleString('default', { month: 'short', year: '2-digit' });
+      if (months[key] !== undefined) months[key].expense += item.amount;
+    });
 
-        {/* Savings */}
-        <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 mb-2">
-            <span className="text-2xs font-mono uppercase tracking-wider">Stashed Savings</span>
-            <Landmark className="w-4 h-4 text-purple-400" />
-          </div>
-          <p className="text-xl font-black text-purple-400">₹{totalSavings.toLocaleString()}</p>
-          <p className="text-[10px] text-purple-400 font-mono mt-2">Yield compounds loaded</p>
-        </div>
+    return Object.entries(months).map(([name, v]) => ({
+      name,
+      Income: v.income,
+      Expense: v.expense,
+    }));
+  }, [incomes, expenses]);
 
-        {/* Health score */}
-        <div className="p-5 rounded-2xl bg-indigo-950/20 border border-indigo-500/20 flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-1.5 bg-indigo-500/20 text-indigo-400 rounded-bl-xl">
-            <Percent className="w-3.5 h-3.5" />
-          </div>
-          <span className="text-2xs font-mono text-indigo-400 uppercase tracking-wider mb-2">Aura Health</span>
-          <p className="text-2xl font-black text-indigo-400 font-mono">{healthScore}/100</p>
-          <p className="text-[10px] text-indigo-300 font-mono mt-2">{healthScore >= 80 ? 'Extremely Resilient' : 'Moderate Safety'}</p>
-        </div>
-      </div>
+  const categoryData = useMemo(() => {
+    const cats: Record<string, number> = {};
+    expenses.forEach(e => { cats[e.category] = (cats[e.category] || 0) + e.amount; });
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#3b82f6', '#14b8a6', '#a855f7'];
+    return Object.entries(cats)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 7)
+      .map(([name, value], i) => ({ name, value, color: colors[i % colors.length] }));
+  }, [expenses]);
 
-      {/* CHARTS LAYER (Income vs Expense, Spending Trend, Savings Growth) */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        
-        {/* Main Income vs Expense Recharts (BarChart) */}
-        <div className="lg:col-span-8 p-6 rounded-2xl border border-white/5 bg-slate-900/30">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className="text-xs font-mono uppercase tracking-widest text-indigo-400">LIQUIDITY TRAJECTORY</p>
-              <h3 className="text-base font-bold text-white">Inflows vs Allocations</h3>
-            </div>
-            <div className="flex items-center gap-4 text-xs font-mono text-slate-500">
-              <span className="inline-flex items-center gap-1.5"><CircleDot className="w-3 h-3 text-indigo-500" /> Income</span>
-              <span className="inline-flex items-center gap-1.5"><CircleDot className="w-3 h-3 text-pink-500" /> Expense</span>
-            </div>
-          </div>
-          <div className="h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={incomeVsExpenseData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" />
-                <XAxis dataKey="name" stroke="#6b7280" fontSize={11} tickLine={false} />
-                <YAxis stroke="#6b7280" fontSize={11} tickLine={false} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px' }} />
-                <Bar dataKey="Income" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Expense" fill="#ec4899" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+  const handleSaveLayout = useCallback((config: WidgetConfig[]) => {
+    setWidgets(config);
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify(config));
+    setShowPersonalization(false);
+  }, []);
 
-        {/* Side Category allocation Doughnut visualizer */}
-        <div className="lg:col-span-4 p-6 rounded-2xl border border-white/5 bg-slate-900/30 flex flex-col justify-between">
-          <div>
-            <p className="text-xs font-mono uppercase tracking-widest text-pink-400 font-bold">NODE ALLOCATIONS</p>
-            <h3 className="text-base font-bold text-white mb-6">Committed Spending</h3>
-          </div>
-          <div className="h-44 w-full relative flex items-center justify-center">
-            {pieData.length === 0 ? (
-              <p className="text-xs font-mono text-slate-500">No active category data</p>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={70}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-2xs font-mono text-slate-500 uppercase">BURNT</span>
-              <span className="text-md font-black text-rose-400 font-mono">₹{totalExpenses}</span>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-3xs font-mono text-slate-400 mt-4 max-h-24 overflow-y-auto">
-            {pieData.map((d, i) => (
-              <div key={i} className="flex items-center gap-1.5 truncate">
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }}></span>
-                <span className="truncate">{d.name} (₹{d.value})</span>
-              </div>
-            ))}
-          </div>
-        </div>
+  const toggleCollapse = useCallback((id: string) => {
+    setCollapsedWidgets(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
-      </div>
+  const handleMarkAllRead = useCallback(() => {
+    notifications.forEach(n => { if (!n.isRead) onMarkNotificationRead(n.id); });
+  }, [notifications, onMarkNotificationRead]);
 
-      {/* TREND PATH Area charts & Predictions */}
-      <div className="grid lg:grid-cols-12 gap-6">
-        
-        {/* Savings Area growth charting */}
-        <div className="lg:col-span-6 p-6 rounded-2xl border border-white/5 bg-slate-900/30">
-          <div className="flex justify-between items-center mb-6">
-            <h4 className="text-sm font-bold text-white">Stashed Core Growth Curve</h4>
-            <span className="text-xs font-mono text-indigo-400">Area Compound index</span>
-          </div>
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={savingsTrendData}>
-                <defs>
-                  <linearGradient id="colorSavings" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff03" />
-                <XAxis dataKey="name" stroke="#6b7280" fontSize={10} />
-                <YAxis stroke="#6b7280" fontSize={10} />
-                <Tooltip contentStyle={{ backgroundColor: '#0f172a' }} />
-                <Area type="monotone" dataKey="Savings" stroke="#818cf8" strokeWidth={2} fillOpacity={1} fill="url(#colorSavings)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+  const sortedWidgets = useMemo(() =>
+    [...widgets].sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return a.order - b.order;
+    }),
+    [widgets]
+  );
 
-        {/* Prediction Metrics Widget */}
-        <div className="lg:col-span-6 grid sm:grid-cols-2 gap-4">
-          {/* Monthly prediction widget */}
-          <div className="p-6 rounded-2xl border border-white/5 bg-slate-900/40 relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute top-0 right-0 p-2 bg-gradient-to-l from-indigo-500/10 to-transparent">
-              <Sparkles className="w-4 h-4 text-indigo-400 animate-pulse" />
-            </div>
-            <div>
-              <p className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest mb-1.5 font-bold">MONTHLY QUANT PREDICTION</p>
-              <h4 className="text-sm font-bold text-white mb-2">Simulated Yield Surplus</h4>
-              <p className="text-2xs text-slate-400">Estimated pocket overflow margin based on current variable velocities.</p>
-            </div>
-            <div className="mt-4">
-              <p className="text-2xl font-black text-white font-mono">₹{monthlyPrediction.toLocaleString()}</p>
-              <p className="text-[10px] text-emerald-400 font-mono mt-1">94.8% Resilient Confidence</p>
-            </div>
-          </div>
+  // Widget wrapper with collapse/hide support
+  const WidgetWrapper = useCallback(({
+    id, children, className = ''
+  }: { id: string; children: React.ReactNode; className?: string }) => {
+    const config = sortedWidgets.find(w => w.id === id);
+    if (!config?.isVisible) return null;
+    const isCollapsed = collapsedWidgets.has(id);
 
-          {/* AI Tailored insights snippet widget */}
-          <div className="p-6 rounded-2xl border border-indigo-500/10 bg-indigo-950/20 relative overflow-hidden flex flex-col justify-between">
-            <div>
-              <p className="text-[10px] font-mono text-indigo-300 uppercase tracking-widest mb-1.5 font-bold">⚡ AI AGENT INSIGHTS</p>
-              <p className="text-xs text-slate-200 font-medium italic">
-                "Aura flagged a ₹150 optimization path in your entertainment billing limits. Activating this boosts Laptop goal completion by 8 days."
-              </p>
-            </div>
-            <button 
-              onClick={() => onNavigate('ai')}
-              className="text-xs font-mono font-bold text-indigo-400 hover:text-white underline text-left mt-4"
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className={className}
+      >
+        <div className="relative group">
+          {/* Widget header controls */}
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => toggleCollapse(id)}
+              className="p-1 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white transition-colors"
+              aria-label={isCollapsed ? 'Expand widget' : 'Collapse widget'}
             >
-              Analyze optimization path &gt;
+              {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
             </button>
           </div>
+          <AnimatePresence>
+            {!isCollapsed && (
+              <motion.div
+                initial={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+              >
+                {children}
+              </motion.div>
+            )}
+          </AnimatePresence>
+          {isCollapsed && (
+            <div
+              className="bg-slate-900/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer"
+              onClick={() => toggleCollapse(id)}
+            >
+              <span className="text-xs text-slate-400">{config.label}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+            </div>
+          )}
         </div>
+      </motion.div>
+    );
+  }, [sortedWidgets, collapsedWidgets, toggleCollapse]);
 
+  return (
+    <div className="space-y-6">
+
+      {/* Dashboard Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-xl font-extrabold text-white">Quantum Ledger Node</h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Principal: <span className="font-mono text-indigo-400">{profile.email}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => onNavigate('ai')}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600/20 border border-indigo-500/30 text-indigo-300 hover:bg-indigo-600/30 text-xs font-bold transition-all focus-ring"
+          >
+            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+            Ask Aura AI
+          </button>
+          <button
+            onClick={() => setShowPersonalization(true)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/5 text-slate-400 hover:text-white hover:bg-white/10 text-xs font-bold transition-all focus-ring"
+            aria-label="Personalize dashboard layout"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+            Customize
+          </button>
+        </div>
       </div>
 
-      {/* UNDERNEATH ROW: Upcoming Bills & Goals progress widgets */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        
-        {/* Goal progression meters */}
-        <div className="p-6 rounded-2xl border border-white/5 bg-slate-900/30">
-          <div className="flex justify-between items-center mb-6">
-            <h4 className="text-sm font-bold text-white">Compound Savings Goals Progress</h4>
-            <button onClick={() => onNavigate('goals')} className="text-xs text-indigo-400 underline font-mono">View All</button>
-          </div>
-          <div className="space-y-4">
-            {goals.slice(0, 3).map(goal => {
-              const pct = Math.min(Math.round((goal.currentAmount / goal.targetAmount) * 100), 100);
-              return (
-                <div key={goal.id} className="space-y-1.5 p-3 rounded-xl bg-white/[0.01]">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-bold text-white">{goal.name}</span>
-                    <span className="font-mono text-indigo-400">{pct}% ({goal.currentAmount}/{goal.targetAmount})</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${pct}%` }}></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+      {/* KPI Summary Row */}
+      <WidgetWrapper id="kpi">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KPICard
+            label="Total Income" value={`₹${totalIncome.toLocaleString()}`}
+            subtext="This period" icon={<TrendingUp className="w-5 h-5" />}
+            color="#10b981" trend="up" onClick={() => onNavigate('income')}
+          />
+          <KPICard
+            label="Total Expenses" value={`₹${totalExpenses.toLocaleString()}`}
+            subtext="This period" icon={<TrendingDown className="w-5 h-5" />}
+            color="#ef4444" trend="down" onClick={() => onNavigate('expense')}
+          />
+          <KPICard
+            label="Net Balance" value={`₹${netBalance.toLocaleString()}`}
+            subtext={netBalance >= 0 ? 'Surplus' : 'Deficit'}
+            icon={<Wallet className="w-5 h-5" />}
+            color={netBalance >= 0 ? '#6366f1' : '#ef4444'}
+            trend={netBalance >= 0 ? 'up' : 'down'}
+          />
+          <KPICard
+            label="Savings Rate" value={`${savingsRate}%`}
+            subtext={`₹${profile.currentSavings.toLocaleString()} total`}
+            icon={<ShieldCheck className="w-5 h-5" />}
+            color="#f59e0b" trend="neutral"
+          />
         </div>
+      </WidgetWrapper>
 
-        {/* Upcoming direct debit reminder widgets */}
-        <div className="p-6 rounded-2xl border border-white/5 bg-slate-900/30">
-          <div className="flex justify-between items-center mb-6">
-            <h4 className="text-sm font-bold text-white">Upcoming Direct Debit Liabilities</h4>
-            <span className="text-[10px] font-mono p-1 bg-red-400/10 text-red-400 rounded">RECURRING OUTSTANDING</span>
+      {/* Financial Health + AI Summary (side by side) */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <WidgetWrapper id="health">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <FinancialHealthScoreCard
+              score={healthScore}
+              monthlyIncome={totalIncome}
+              monthlyExpenses={totalExpenses}
+              savings={profile.currentSavings}
+            />
+          </Suspense>
+        </WidgetWrapper>
+
+        <WidgetWrapper id="ai-summary">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <AIMonthlySummaryCard userId={userId} />
+          </Suspense>
+        </WidgetWrapper>
+      </div>
+
+      {/* Income vs Expense Chart */}
+      <WidgetWrapper id="charts">
+        <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-white">Income vs Expense</h3>
+              <p className="text-[10px] text-slate-400 font-mono mt-0.5">Last 6 months · Real data</p>
+            </div>
+            <button
+              onClick={() => onNavigate('reports')}
+              className="text-[10px] text-indigo-400 hover:text-indigo-300 font-mono flex items-center gap-1 focus-ring"
+            >
+              Full Report <ArrowUpRight className="w-3 h-3" />
+            </button>
           </div>
-          <div className="space-y-3">
-            {reminders.slice(0, 3).map(bill => (
-              <div key={bill.id} className="p-3.5 rounded-xl bg-white/[0.01] border border-white/5 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-3">
-                  <div className={`w-2 h-2 rounded-full ${bill.isPaid ? 'bg-emerald-500' : 'bg-rose-500'}`} />
-                  <div>
-                    <p className="font-bold text-white">{bill.title}</p>
-                    <p className="text-[10px] text-slate-500 font-mono mt-0.5">Due date: {bill.dueDate}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="font-mono text-white font-bold">₹{bill.amount}</span>
-                  <span className={`px-2 py-0.5 text-[9px] font-mono rounded ${bill.isPaid ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                    {bill.isPaid ? 'AUTO_SETTLED' : 'PENDING'}
-                  </span>
-                </div>
+          {chartsLoaded ? (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={incomeVsExpenseData} barCategoryGap="30%">
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: '#64748b', fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} width={50}
+                    tickFormatter={v => `₹${v >= 1000 ? `${Math.round(v/1000)}k` : v}`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: '10px', fontFamily: 'JetBrains Mono' }} />
+                  <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Expense" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <WidgetSkeleton />}
+        </div>
+      </WidgetWrapper>
+
+      {/* Cash Flow + Spending Insights */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <WidgetWrapper id="cashflow">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <CashFlowCard incomes={incomes} expenses={expenses} />
+          </Suspense>
+        </WidgetWrapper>
+
+        <WidgetWrapper id="spending">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <SpendingInsightsCard expenses={expenses} />
+          </Suspense>
+        </WidgetWrapper>
+      </div>
+
+      {/* Budget Health + Category Breakdown */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <WidgetWrapper id="budget">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <BudgetHealthCard budgets={budgets} expenses={expenses} />
+          </Suspense>
+        </WidgetWrapper>
+
+        {/* Category Breakdown Pie */}
+        <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-white">Category Breakdown</h3>
+              <p className="text-[10px] text-slate-400 font-mono mt-0.5">Expense distribution</p>
+            </div>
+          </div>
+          {chartsLoaded && categoryData.length > 0 ? (
+            <div className="flex items-center gap-4">
+              <div className="w-40 h-40 flex-shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={categoryData} cx="50%" cy="50%" innerRadius={36} outerRadius={60}
+                      dataKey="value" paddingAngle={3}>
+                      {categoryData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-            ))}
-          </div>
+              <div className="flex-1 space-y-1.5">
+                {categoryData.map((cat, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full" style={{ background: cat.color }} />
+                      <span className="text-slate-300 truncate max-w-[80px]">{cat.name}</span>
+                    </div>
+                    <span className="font-mono text-slate-400">₹{cat.value.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500 text-sm">No expense data</div>
+          )}
         </div>
-
       </div>
 
+      {/* Forecast + Goals */}
+      <div className="grid lg:grid-cols-2 gap-4">
+        <WidgetWrapper id="forecast">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <ForecastCard incomes={incomes} expenses={expenses} savings={profile.currentSavings} />
+          </Suspense>
+        </WidgetWrapper>
+
+        <WidgetWrapper id="goals">
+          <Suspense fallback={<WidgetSkeleton />}>
+            <GoalProgressCard goals={goals} />
+          </Suspense>
+        </WidgetWrapper>
+      </div>
+
+      {/* Smart Alerts */}
+      <WidgetWrapper id="alerts">
+        <Suspense fallback={<WidgetSkeleton />}>
+          <SmartAlertsCard
+            notifications={notifications}
+            onMarkRead={onMarkNotificationRead}
+            onMarkAllRead={handleMarkAllRead}
+            onDismiss={onClearNotification}
+          />
+        </Suspense>
+      </WidgetWrapper>
+
+      {/* Personalization Panel */}
+      <AnimatePresence>
+        {showPersonalization && (
+          <Suspense fallback={null}>
+            <DashboardPersonalizationPanel
+              widgetConfig={widgets}
+              onSave={handleSaveLayout}
+              onClose={() => setShowPersonalization(false)}
+            />
+          </Suspense>
+        )}
+      </AnimatePresence>
     </div>
   );
-};
+});
+
+DashboardView.displayName = 'DashboardView';

@@ -12,6 +12,7 @@ import { ActionCenter, ActionCenterPayload } from './ActionCenter';
 import { AutomationConfig } from './AutomationConfig';
 import { AutomationEventBus } from './AutomationEventBus';
 import { AnalyticsRepository } from '../analytics/AnalyticsRepository';
+import { logger } from '../utils/logger';
 
 // Rule Implementations
 import { BudgetRules } from './rules/BudgetRules';
@@ -61,7 +62,7 @@ export class AutomationFacade {
     AutomationEventBus.start();
 
     AutomationFacade.initialized = true;
-    console.log(`[AutomationFacade] Hardened platform initialized under profile: ${profile}`);
+    logger.debug(`[AutomationFacade] Hardened platform initialized under profile: ${profile}`);
   }
 
   static async enqueueEvent(event: DomainEvent, priority: number): Promise<void> {
@@ -126,6 +127,6 @@ export class AutomationFacade {
     AutomationFacade.scheduler.clear();
 
     AutomationFacade.initialized = false;
-    console.log('[AutomationFacade] System shut down.');
+    logger.debug('[AutomationFacade] System shut down.');
   }
 }

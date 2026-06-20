@@ -9,8 +9,8 @@ interface AuthProps {
 }
 
 export const LoginView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
-  const [email, setEmail] = useState('pidaparthibharath@karunya.edu.in');
-  const [password, setPassword] = useState('••••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -52,7 +52,7 @@ export const LoginView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
               type="email" 
               required
               className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-white/5 bg-white/5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-mono"
-              placeholder="name@organization.com"
+              placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -89,6 +89,12 @@ export const LoginView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
             </button>
           </div>
         </div>
+
+        {errorMsg && (
+          <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-300 font-mono">
+            {errorMsg}
+          </div>
+        )}
 
         <button 
           type="submit"
@@ -173,7 +179,7 @@ export const SignupView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
               type="email" 
               required
               className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-white/5 bg-white/5 text-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 outline-none transition-all font-mono"
-              placeholder="pidaparthibharath@karunya.edu.in"
+              placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -207,6 +213,12 @@ export const SignupView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
             I subscribe to quantum telemetry, algorithmic rules, & privacy standards.
           </label>
         </div>
+
+        {errorMsg && (
+          <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-300 font-mono">
+            {errorMsg}
+          </div>
+        )}
 
         <button 
           type="submit"
@@ -285,12 +297,18 @@ export const ForgotPasswordView: React.FC<AuthProps> = ({ onSuccess, onNavigate 
                 type="email" 
                 required
                 className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-white/5 bg-white/5 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all font-mono"
-                placeholder="pidaparthibharath@karunya.edu.in"
+                placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
           </div>
+
+          {errorMsg && (
+            <div className="px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-300 font-mono">
+              {errorMsg}
+            </div>
+          )}
 
           <button 
             type="submit"

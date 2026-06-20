@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { 
   Bell, Shield, Check, Trash2, Mail, User, Lock, Sparkles, Sliders, 
-  Cpu, Users, RefreshCw, Key, Volume2, Moon, Sun, CheckCircle2 
+  Cpu, Users, RefreshCw, Key, Volume2, Moon, Sun, CheckCircle2, AlertTriangle 
 } from 'lucide-react';
 import { SystemNotification, UserProfile } from '../../types';
 import { useTheme } from '../ThemeContext';
+import { profileService } from '../../services/profileService';
 
 interface ViewProps {
   notifications: SystemNotification[];
   profile: UserProfile;
+  userId?: string;
   onClearNotification: (id: string) => void;
   onMarkNotificationRead: (id: string) => void;
   onUpdateProfile: (profile: UserProfile) => void;
@@ -89,17 +91,33 @@ export const NotificationsPanel: React.FC<ViewProps> = ({
   );
 };
 
-export const ProfilePanel: React.FC<ViewProps> = ({ profile, onUpdateProfile }) => {
+export const ProfilePanel: React.FC<ViewProps> = ({ profile, userId, onUpdateProfile }) => {
   const [name, setName] = useState(profile.name);
   const [email, setEmail] = useState(profile.email);
   const [avatar, setAvatar] = useState(profile.avatar);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateProfile({ ...profile, name, email, avatar });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const updates: Partial<UserProfile> = { name, email, avatar };
+      if (userId) {
+        const persisted = await profileService.updateProfile(userId, updates);
+        onUpdateProfile({ ...profile, ...persisted });
+      } else {
+        onUpdateProfile({ ...profile, name, email, avatar });
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save profile changes.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -137,13 +155,26 @@ export const ProfilePanel: React.FC<ViewProps> = ({ profile, onUpdateProfile }) 
             </div>
           </div>
 
-          <div className="flex justify-end pt-3">
-            <button 
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2"
-            >
-              {saved ? 'Identity Updated' : 'Save Parameters'}
-            </button>
+          <div className="flex flex-col gap-2 pt-3">
+            {saveError && (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-xs text-rose-300 font-mono">
+                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                {saveError}
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button 
+                type="submit"
+                disabled={saving}
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 disabled:opacity-60"
+              >
+                {saving ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : saved ? (
+                  <><Check className="w-3.5 h-3.5" /> Identity Updated</>
+                ) : 'Save Parameters'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -276,24 +307,24 @@ export const AdminDashboardPanel: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* Metrics Row */}
+      {/* Metrics Row – DEMO DATA */}
       <div className="grid sm:grid-cols-4 gap-6">
         <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5">
           <span className="text-3xs font-mono text-slate-500 block">TOTAL PLATFORM USERS</span>
           <p className="text-2xl font-black text-white mt-1">11,480</p>
-          <span className="text-[10px] text-emerald-400 font-mono">▲ +12% this month</span>
+          <span className="text-[10px] text-amber-400 font-mono">▲ DEMO METRIC</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5">
           <span className="text-3xs font-mono text-slate-500 block">TOTAL VOLUME TRANSACTS</span>
           <p className="text-2xl font-black text-white mt-1">₹4.85M</p>
-          <span className="text-[10px] text-emerald-400 font-mono">Quantum settlement ledger</span>
+          <span className="text-[10px] text-amber-400 font-mono">DEMO METRIC</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5">
           <span className="text-3xs font-mono text-slate-500 block">AI NODES COMPUTE LOGS</span>
           <p className="text-2xl font-black text-white mt-1">482,500</p>
-          <span className="text-[10px] text-indigo-400 font-mono">Gemini 3.5 API calls</span>
+          <span className="text-[10px] text-amber-400 font-mono">DEMO METRIC</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-indigo-950/20 border border-indigo-500/20">

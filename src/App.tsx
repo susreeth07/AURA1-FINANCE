@@ -15,23 +15,25 @@ import { authService } from './services/authService';
 import { supabase } from './lib/supabaseClient';
 import { incomeService } from './services/incomeService';
 import { expenseService } from './services/expenseService';
+import { budgetService } from './services/budgetService';
+import { goalService } from './services/goalService';
 import { toast, ToastMessage } from './utils/toast';
 import { useOptimisticMutation } from './hooks/useOptimisticMutation';
-import { useRealtime } from './hooks/useRealtime';
 import { FinancialProfileSetupView } from './components/views/FinancialProfileSetupView';
 import { DashboardView } from './components/views/DashboardView';
 import { IncomePanel, ExpensePanel, BudgetPanel } from './components/views/IncomeExpenseBudgetViews';
 import { TransactionsPanel, ReportsPanel } from './components/views/TransactionsReportsViews';
-import { GoalsPanel, AiAssistantPanel } from './components/views/GoalsAiViews';
+import { GoalsPanel } from './components/views/GoalsAiViews';
 import { NotificationsPanel, ProfilePanel, SettingsPanel, AdminDashboardPanel } from './components/views/ProfileSettingsAdminViews';
 import { AutomationFacade } from './automation/AutomationFacade';
 import { ActionCenter } from './automation/ActionCenter';
+import { FloatingAuraAssistant } from './components/ai/FloatingAuraAssistant';
+import { CommandPalette } from './components/ai/CommandPalette';
+import { AuraChatInterface } from './components/ai/AuraChatInterface';
+import { ReportCenter } from './components/reports/ReportCenter';
+import { reportService } from './reports/ReportService';
 
-import { 
-  INITIAL_USER_PROFILE, INITIAL_INCOMES, INITIAL_EXPENSES, 
-  INITIAL_BUDGETS, INITIAL_SAVINGS_GOALS, INITIAL_BILL_REMINDERS, 
-  INITIAL_NOTIFICATIONS 
-} from './mockData';
+import { INITIAL_USER_PROFILE } from './mockData';
 import { UserProfile, IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillReminder, SystemNotification } from './types';
 
 function MainApp() {
@@ -43,7 +45,7 @@ function MainApp() {
   const [loadingText, setLoadingText] = useState('Initializing Core Ledgers');
 
   // 2. Navigation State
-  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'signup' | 'forgot' | 'setup' | 'dashboard' | 'income' | 'expense' | 'budget' | 'transactions' | 'reports' | 'goals' | 'ai' | 'notifications' | 'profile' | 'settings' | 'admin'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'signup' | 'forgot' | 'setup' | 'dashboard' | 'income' | 'expense' | 'budget' | 'transactions' | 'reports' | 'goals' | 'ai' | 'notifications' | 'profile' | 'settings' | 'admin' | 'reports-center'>('landing');
 
   // 3. Authenticated Identity States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -62,6 +64,20 @@ function MainApp() {
   // 4. Modal Popups
   const [showSalaryPopup, setShowSalaryPopup] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+  const [floatingAIOpen, setFloatingAIOpen] = useState(false);
+
+  // Global Ctrl+K keyboard shortcut for command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k' && isLoggedIn) {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isLoggedIn]);
 
   // 5. Enterprise Infrastructure & Toast / Mutation States
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -239,6 +255,7 @@ function MainApp() {
     let unsubscribe: (() => void) | null = null;
     if (isLoggedIn && userId) {
       AutomationFacade.initialize('production');
+      reportService.resumeSchedulesOnBoot();
       unsubscribe = ActionCenter.subscribe((payload) => {
         setNotifications(payload.unreadNotifications.map(n => ({
           id: n.id,
@@ -496,40 +513,82 @@ function MainApp() {
     });
   };
 
-  const handleAddBudget = (b: BudgetItem) => {
+  const handleAddBudget = async (b: BudgetItem) => {
+    // Optimistic update
     setBudgets((prev) => [...prev, b]);
+    try {
+      const persisted = await budgetService.createBudget(userId, b);
+      // Replace optimistic entry with server-returned record
+      setBudgets((prev) => prev.map(item => item.id === b.id ? persisted : item));
+    } catch (err: any) {
+      // Rollback on failure
+      setBudgets((prev) => prev.filter(item => item.id !== b.id));
+      toast.error(`Failed to save budget: ${err.message || 'Unknown error'}`);
+    }
   };
 
-  const handleUpdateBudget = (revised: BudgetItem) => {
+  const handleUpdateBudget = async (revised: BudgetItem) => {
+    const original = budgets.find(b => b.id === revised.id);
+    // Optimistic update
     setBudgets((prev) => prev.map(b => b.id === revised.id ? revised : b));
+    try {
+      await budgetService.updateBudget(userId, revised.id, revised.limit);
+    } catch (err: any) {
+      // Rollback on failure
+      if (original) setBudgets((prev) => prev.map(b => b.id === revised.id ? original : b));
+      toast.error(`Failed to update budget: ${err.message || 'Unknown error'}`);
+    }
   };
 
   // State Modifiers for Savings Goals placements
-  const handleAddGoalFunds = (id: string, amount: number) => {
-    setGoals(prev => prev.map(goal => {
-      if (goal.id === id) {
-        const finalVal = goal.currentAmount + amount;
-        
-        // Notify user if completed
-        if (finalVal >= goal.targetAmount && goal.currentAmount < goal.targetAmount) {
-          const successAlert: SystemNotification = {
-            id: `not-${Date.now()}`,
-            type: 'goal',
-            title: 'Goal Achieved!',
-            message: `Congratulations! Your savings goal for '${goal.name}' has achieved 100% stashing.`,
-            date: new Date().toISOString(),
-            isRead: false
-          };
-          setNotifications(prev => [successAlert, ...prev]);
-        }
-        return { ...goal, currentAmount: Math.min(finalVal, goal.targetAmount) };
-      }
-      return goal;
-    }));
+  const handleAddGoalFunds = async (id: string, amount: number) => {
+    const goal = goals.find(g => g.id === id);
+    if (!goal) return;
+    const finalVal = Math.min(goal.currentAmount + amount, goal.targetAmount);
+
+    // Optimistic update
+    setGoals(prev => prev.map(g =>
+      g.id === id ? { ...g, currentAmount: finalVal } : g
+    ));
+
+    // Completion notification (optimistic)
+    if (finalVal >= goal.targetAmount && goal.currentAmount < goal.targetAmount) {
+      const successAlert: SystemNotification = {
+        id: `not-${Date.now()}`,
+        type: 'goal',
+        title: 'Goal Achieved!',
+        message: `Congratulations! Your savings goal for '${goal.name}' has achieved 100% stashing.`,
+        date: new Date().toISOString(),
+        isRead: false
+      };
+      setNotifications(prev => [successAlert, ...prev]);
+    }
+
+    try {
+      const persisted = await goalService.fundGoal(userId, id, amount);
+      // Sync with confirmed server value
+      setGoals(prev => prev.map(g => g.id === id ? persisted : g));
+    } catch (err: any) {
+      // Rollback on failure
+      setGoals(prev => prev.map(g =>
+        g.id === id ? { ...g, currentAmount: goal.currentAmount } : g
+      ));
+      toast.error(`Failed to fund goal: ${err.message || 'Unknown error'}`);
+    }
   };
 
-  const handleAddSavingsGoal = (newGoal: SavingsGoal) => {
+  const handleAddSavingsGoal = async (newGoal: SavingsGoal) => {
+    // Optimistic update
     setGoals(prev => [...prev, newGoal]);
+    try {
+      const persisted = await goalService.createGoal(userId, newGoal);
+      // Replace optimistic entry with server-returned record
+      setGoals(prev => prev.map(g => g.id === newGoal.id ? persisted : g));
+    } catch (err: any) {
+      // Rollback on failure
+      setGoals(prev => prev.filter(g => g.id !== newGoal.id));
+      toast.error(`Failed to save goal: ${err.message || 'Unknown error'}`);
+    }
   };
 
   // Notification clear triggers
@@ -602,7 +661,7 @@ function MainApp() {
   }
 
   // Dashboard state routing layouts
-  const isDashboardView = isLoggedIn && ['dashboard', 'income', 'expense', 'budget', 'transactions', 'reports', 'goals', 'ai', 'notifications', 'profile', 'settings', 'admin'].includes(currentView);
+  const isDashboardView = isLoggedIn && ['dashboard', 'income', 'expense', 'budget', 'transactions', 'reports', 'goals', 'ai', 'notifications', 'profile', 'settings', 'admin', 'reports-center'].includes(currentView);
 
   return (
     <div className="min-h-screen text-slate-100 dark:text-slate-100 bg-slate-950 dark:bg-slate-950 light:text-slate-950 light:bg-slate-50 relative">
@@ -725,6 +784,13 @@ function MainApp() {
                   </button>
 
                   <button 
+                    onClick={() => setCurrentView('reports-center')}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'reports-center' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                  >
+                    <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5 text-indigo-400" /> REPORT CENTER</span>
+                  </button>
+
+                  <button 
                     onClick={() => setCurrentView('goals')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'goals' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
@@ -829,14 +895,18 @@ function MainApp() {
             <div className="p-8 max-w-7xl w-full mx-auto flex-1">
               {currentView === 'dashboard' && (
                 <DashboardView 
-                  profile={userProfile} 
+                  profile={userProfile}
+                  userId={userId}
                   incomes={incomes} 
                   expenses={expenses} 
                   budgets={budgets} 
                   goals={goals} 
                   reminders={reminders}
+                  notifications={notifications}
                   onNavigate={setCurrentView}
                   onShowSalaryUpdate={() => setShowSalaryPopup(true)}
+                  onMarkNotificationRead={handleMarkNotificationRead}
+                  onClearNotification={handleClearNotification}
                 />
               )}
 
@@ -874,11 +944,14 @@ function MainApp() {
                   incomes={incomes} expenses={expenses} budgets={budgets}
                 />
               )}
-
               {currentView === 'reports' && (
                 <ReportsPanel 
-                  incomes={incomes} expenses={expenses} budgets={budgets}
+                  incomes={incomes} expenses={expenses} budgets={budgets} userId={userId}
                 />
+              )}
+
+              {currentView === 'reports-center' && (
+                <ReportCenter userId={userId} />
               )}
 
               {currentView === 'goals' && (
@@ -890,13 +963,19 @@ function MainApp() {
               )}
 
               {currentView === 'ai' && (
-                <AiAssistantPanel />
+                <AuraChatInterface
+                  userId={userId}
+                  onAddIncome={handleAddIncome}
+                  onAddExpense={handleAddExpense}
+                  onNavigate={setCurrentView as any}
+                />
               )}
 
               {currentView === 'notifications' && (
                 <NotificationsPanel 
                   notifications={notifications}
                   profile={userProfile}
+                  userId={userId}
                   onClearNotification={handleClearNotification}
                   onMarkNotificationRead={handleMarkNotificationRead}
                   onUpdateProfile={setUserProfile}
@@ -907,6 +986,7 @@ function MainApp() {
                 <ProfilePanel 
                   notifications={notifications}
                   profile={userProfile}
+                  userId={userId}
                   onClearNotification={handleClearNotification}
                   onMarkNotificationRead={handleMarkNotificationRead}
                   onUpdateProfile={setUserProfile}
@@ -930,6 +1010,28 @@ function MainApp() {
           </main>
 
         </div>
+      )}
+
+      {/* GLOBAL FLOATING AI ASSISTANT (all authenticated views) */}
+      {isDashboardView && (
+        <FloatingAuraAssistant
+          userId={userId}
+          onOpenFullChat={() => setCurrentView('ai')}
+        />
+      )}
+
+      {/* GLOBAL COMMAND PALETTE */}
+      {isDashboardView && (
+        <CommandPalette
+          isOpen={commandPaletteOpen}
+          onClose={() => setCommandPaletteOpen(false)}
+          onNavigate={(view) => { setCurrentView(view as any); setCommandPaletteOpen(false); }}
+          onAddIncome={() => setCurrentView('income')}
+          onAddExpense={() => setCurrentView('expense')}
+          onCreateBudget={() => setCurrentView('budget')}
+          onCreateGoal={() => setCurrentView('goals')}
+          onOpenAI={() => setCurrentView('ai')}
+        />
       )}
 
       {/* MONTHLY SALARY UPDATE POPUP COMPONENT (As requested) */}

@@ -13,7 +13,7 @@ interface SetupProps {
 export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, userId, onComplete }) => {
   const [step, setStep] = useState<number>(userProfile.onboardingStep || 1);
   const [formData, setFormData] = useState({
-    name: userProfile.name || 'Alex Sterling',
+    name: userProfile.name || '',
     email: userProfile.email || '',
     monthlySalary: userProfile.monthlySalary || 7500,
     additionalIncome: userProfile.additionalIncome || 1200,

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { UserProfile } from '../types';
+import { logger } from '../utils/logger';
 
 // Map database columns to UserProfile JS model
 export function mapDbToProfile(profile: any): UserProfile {
@@ -62,7 +63,7 @@ export const profileService = {
           throw err;
         }
         const delay = Math.pow(2, attempt - 1) * 1000;
-        console.warn(`[ProfileService] Database operation failed: ${err.message || err}. Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`);
+        logger.warn(`[ProfileService] Database operation failed: ${err.message || err}. Retrying in ${delay}ms... (Attempt ${attempt}/${maxRetries})`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
