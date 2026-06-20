@@ -1,0 +1,38 @@
+{
+  "passed": [
+    "User A Registration (Admin)",
+    "User A Login",
+    "User B Registration (Admin)",
+    "User B Login",
+    "Session Persistence",
+    "Profile Auto Creation Trigger",
+    "User Settings Auto Creation Trigger",
+    "Profiles Update & Read",
+    "Incomes CRUD",
+    "Expenses CRUD",
+    "Budgets CRUD",
+    "Savings Goals CRUD",
+    "Goal Transactions CRUD",
+    "Bill Reminders CRUD",
+    "Notifications CRUD",
+    "Chat Messages CRUD",
+    "Audit Log Triggers Fired"
+  ],
+  "failed": [
+    "Password Reset Requests: email rate limit exceeded"
+  ],
+  "security": [
+    "RLS Profiles Isolation",
+    "RLS Incomes Isolation",
+    "RLS Expenses Isolation",
+    "RLS Budgets Isolation",
+    "RLS Savings Goals Isolation",
+    "RLS Bill Reminders Isolation",
+    "RLS Notifications Isolation",
+    "RLS Chat Messages Isolation",
+    "Audit Log Delete Blocked"
+  ],
+  "performance": [],
+  "auth": [],
+  "database": []
+}
