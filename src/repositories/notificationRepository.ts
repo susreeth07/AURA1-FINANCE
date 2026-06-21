@@ -50,6 +50,7 @@ export class NotificationRepository extends BaseRepository<any, NotificationItem
   }
 
   async fetchNotifications(userId: string, status?: string, page = 1, pageSize = 20): Promise<{ data: NotificationItem[]; count: number | null }> {
+    this.validateUserId(userId);
     return this.tracePerformance('fetchNotifications', async () => {
       const { from, to } = this.getRange(page, pageSize);
       let query = supabase
@@ -76,6 +77,7 @@ export class NotificationRepository extends BaseRepository<any, NotificationItem
   }
 
   async markAllRead(userId: string): Promise<void> {
+    this.validateUserId(userId);
     return this.tracePerformance('markAllRead', async () => {
       const { error } = await supabase
         .from(this.tableName)

@@ -32,7 +32,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   }
 });
 
-const testEmail = `auth-audit-${Date.now()}@example.com`;
+const testEmail = `prod-auth-audit-${Date.now()}@example.com`;
 const testPassword = `SuperSecurePass123!`;
 let testUserId = null;
 
@@ -42,7 +42,7 @@ async function setupTestUser() {
     email: testEmail,
     password: testPassword,
     email_confirm: true,
-    user_metadata: { name: 'Audit Tester' }
+    user_metadata: { name: 'Prod Audit Tester' }
   });
   if (error) {
     throw new Error(`Failed to create test user: ${error.message}`);
@@ -140,16 +140,16 @@ async function cleanupTestUser() {
 
   try {
     console.log('\n==================================================');
-    console.log('STEP 1: Test New Account Signup');
+    console.log('STEP 1: Test New Account Signup against Production');
     console.log('==================================================');
-    await page.goto('http://localhost:3000');
+    await page.goto('https://aura-1-finance.vercel.app');
     await page.waitForLoadState('networkidle');
 
     await page.click('text=Get Started Free');
     await page.waitForTimeout(1000);
 
     const signupEmail = `signup-fresh-${Date.now()}@example.com`;
-    await page.fill('input[placeholder="Your name"]', 'Audit Tester');
+    await page.fill('input[placeholder="Your name"]', 'Prod Audit Tester');
     await page.fill('input[type="email"]', signupEmail);
     await page.fill('input[placeholder="Create a strong password"]', 'SuperSecurePass123!');
     
@@ -161,7 +161,7 @@ async function cleanupTestUser() {
 
     // Submit signup
     await page.click('button:has-text("Sign Up")');
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(6000);
 
     // Clear session to reset state for the login test
     console.log('Clearing session state to prepare for login audit...');
@@ -169,9 +169,9 @@ async function cleanupTestUser() {
     await page.evaluate(() => localStorage.clear());
 
     console.log('\n==================================================');
-    console.log('STEP 2: Test User Login (Verified User)');
+    console.log('STEP 2: Test User Login (Verified User) against Production');
     console.log('==================================================');
-    await page.goto('http://localhost:3000');
+    await page.goto('https://aura-1-finance.vercel.app');
     await page.waitForLoadState('networkidle');
 
     await page.click('text=Log In');
@@ -182,10 +182,10 @@ async function cleanupTestUser() {
     await page.click('button:has-text("Log In")');
     await page.waitForTimeout(8000);
 
-    await page.screenshot({ path: 'C:/Users/susre/.gemini/antigravity/brain/57f9617e-51e1-43af-b78c-a54fe84b1182/scratch/dashboard_view.png' });
+    await page.screenshot({ path: 'C:/Users/susre/.gemini/antigravity/brain/57f9617e-51e1-43af-b78c-a54fe84b1182/scratch/production_dashboard_view.png' });
 
     console.log('\n==================================================');
-    console.log('STEP 3: Test Logout');
+    console.log('STEP 3: Test Logout against Production');
     console.log('==================================================');
     const logoutBtn = page.locator('button:has(svg.lucide-log-out)');
     await logoutBtn.click();
@@ -193,11 +193,11 @@ async function cleanupTestUser() {
     await page.waitForTimeout(5000);
 
     // Capture screenshot after logout to see what view is shown
-    await page.screenshot({ path: 'C:/Users/susre/.gemini/antigravity/brain/57f9617e-51e1-43af-b78c-a54fe84b1182/scratch/after_logout.png' });
-    console.log('Captured after_logout.png screenshot.');
+    await page.screenshot({ path: 'C:/Users/susre/.gemini/antigravity/brain/57f9617e-51e1-43af-b78c-a54fe84b1182/scratch/production_after_logout.png' });
+    console.log('Captured production_after_logout.png screenshot.');
 
     console.log('\n==================================================');
-    console.log('STEP 4: Test Login Again');
+    console.log('STEP 4: Test Login Again against Production');
     console.log('==================================================');
     await page.click('text=Log In');
     await page.waitForTimeout(1000);
@@ -208,20 +208,20 @@ async function cleanupTestUser() {
     await page.waitForTimeout(8000);
 
     console.log('\n==================================================');
-    console.log('STEP 5: Test Browser Refresh & Session Restore');
+    console.log('STEP 5: Test Browser Refresh & Session Restore against Production');
     console.log('==================================================');
     await page.reload();
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(8000);
 
     fs.writeFileSync(
-      'C:/Users/susre/.gemini/antigravity/brain/57f9617e-51e1-43af-b78c-a54fe84b1182/scratch/auth_audit_traffic.json',
+      'C:/Users/susre/.gemini/antigravity/brain/57f9617e-51e1-43af-b78c-a54fe84b1182/scratch/production_auth_audit_traffic.json',
       JSON.stringify(trafficRegistry, null, 2)
     );
     console.log('Traffic registry saved.');
 
   } catch (err) {
-    console.error('Error during test execution:', err);
+    console.error('Error during production test execution:', err);
   } finally {
     await browser.close();
     await cleanupTestUser();

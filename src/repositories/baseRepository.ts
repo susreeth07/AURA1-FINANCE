@@ -41,9 +41,19 @@ export abstract class BaseRepository<TDbRow, TJsModel> {
   }
 
   /**
+   * Enforce production-grade validation on user identifiers.
+   */
+  protected validateUserId(userId: string): void {
+    if (userId === undefined || userId === null || typeof userId !== 'string' || userId.trim() === '') {
+      throw new Error(`[BaseRepository:${this.tableName}] Fatal: Operation blocked due to missing, empty, or invalid user identifier.`);
+    }
+  }
+
+  /**
    * Generic fetch by ID.
    */
   async findById(userId: string, id: string): Promise<TJsModel | null> {
+    this.validateUserId(userId);
     return this.tracePerformance('findById', async () => {
       const { data, error } = await supabase
         .from(this.tableName)
@@ -64,6 +74,7 @@ export abstract class BaseRepository<TDbRow, TJsModel> {
    * Generic Insert.
    */
   async insert(userId: string, item: Omit<TJsModel, 'id'> & { id?: string }): Promise<TJsModel> {
+    this.validateUserId(userId);
     return this.tracePerformance('insert', async () => {
       const dbPayload = {
         ...this.mapModelToDb(item as any),
@@ -92,6 +103,7 @@ export abstract class BaseRepository<TDbRow, TJsModel> {
    * Generic Update (supports delta-saving updates).
    */
   async update(userId: string, id: string, updates: Partial<TJsModel>): Promise<TJsModel> {
+    this.validateUserId(userId);
     return this.tracePerformance('update', async () => {
       const dbPayload = this.mapModelToDb(updates);
 
@@ -115,6 +127,7 @@ export abstract class BaseRepository<TDbRow, TJsModel> {
    * Generic Delete.
    */
   async delete(userId: string, id: string): Promise<void> {
+    this.validateUserId(userId);
     return this.tracePerformance('delete', async () => {
       const { error } = await supabase
         .from(this.tableName)
@@ -133,6 +146,7 @@ export abstract class BaseRepository<TDbRow, TJsModel> {
    * Generic Batch Insert.
    */
   async batchInsert(userId: string, items: (Omit<TJsModel, 'id'> & { id?: string })[]): Promise<TJsModel[]> {
+    this.validateUserId(userId);
     return this.tracePerformance('batchInsert', async () => {
       const dbPayloads = items.map((item) => ({
         ...this.mapModelToDb(item as any),
@@ -157,6 +171,7 @@ export abstract class BaseRepository<TDbRow, TJsModel> {
    * Soft Delete support (future ready archive tracking).
    */
   async softDelete(userId: string, id: string): Promise<void> {
+    this.validateUserId(userId);
     return this.tracePerformance('softDelete', async () => {
       // Updates the deleted_at column (assumes table has soft delete schema)
       const { error } = await supabase

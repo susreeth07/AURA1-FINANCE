@@ -34,6 +34,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
    * Look up a category ID (UUID) by name for a user (or system defaults).
    */
   async getCategoryIdByName(userId: string, categoryName: string): Promise<string | null> {
+    this.validateUserId(userId);
     return this.tracePerformance('getCategoryIdByName', async () => {
       const { data, error } = await supabase
         .from('categories')
@@ -66,6 +67,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
     page = 1,
     pageSize = 20
   ): Promise<{ data: IncomeItem[]; count: number | null }> {
+    this.validateUserId(userId);
     return this.tracePerformance('fetchIncomes', async () => {
       let query = supabase
         .from(this.tableName)
@@ -114,6 +116,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
     userId: string,
     income: Omit<IncomeItem, 'id'> & { id?: string }
   ): Promise<IncomeItem> {
+    this.validateUserId(userId);
     return this.tracePerformance('insertIncome', async () => {
       const categoryId = await this.getCategoryIdByName(userId, income.category);
       const mapped = this.mapModelToDb(income);
@@ -145,6 +148,7 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
     id: string,
     updates: Partial<IncomeItem>
   ): Promise<IncomeItem> {
+    this.validateUserId(userId);
     return this.tracePerformance('updateIncome', async () => {
       const mapped = this.mapModelToDb(updates);
       if (updates.category !== undefined) {

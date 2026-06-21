@@ -35,6 +35,7 @@ export class SavingsGoalRepository extends BaseRepository<any, SavingsGoal> {
   }
 
   async fetchSavingsGoals(userId: string): Promise<SavingsGoal[]> {
+    this.validateUserId(userId);
     return this.tracePerformance('fetchSavingsGoals', async () => {
       const { data, error } = await supabase
         .from(this.tableName)
@@ -51,6 +52,7 @@ export class SavingsGoalRepository extends BaseRepository<any, SavingsGoal> {
   }
 
   async insertSavingsGoal(userId: string, goal: Omit<SavingsGoal, 'id'> & { id?: string }): Promise<SavingsGoal> {
+    this.validateUserId(userId);
     const { data, error } = await supabase
       .from(this.tableName)
       .insert({
@@ -64,6 +66,7 @@ export class SavingsGoalRepository extends BaseRepository<any, SavingsGoal> {
   }
 
   async fundGoal(userId: string, id: string, amount: number): Promise<SavingsGoal> {
+    this.validateUserId(userId);
     const goal = await this.findById(userId, id);
     if (!goal) throw new Error("Goal not found");
 

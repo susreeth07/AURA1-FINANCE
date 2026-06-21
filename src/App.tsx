@@ -52,6 +52,7 @@ function MainApp() {
   const [userId, setUserId] = useState<string>('');
   const [dbLoading, setDbLoading] = useState(false);
   const [dbError, setDbError] = useState<string | null>(null);
+  const [authInitializing, setAuthInitializing] = useState(true);
 
   const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
   const [incomes, setIncomes] = useState<IncomeItem[]>([]);
@@ -104,8 +105,8 @@ function MainApp() {
   // Asynchronous Database Loader and Router
   const loadAllUserData = async (customUserId?: string) => {
     const activeUserId = customUserId || userId;
-    if (!activeUserId) {
-      setDbError("No active user session detected.");
+    if (!activeUserId || activeUserId.trim() === '') {
+      console.warn('[Auth] loadAllUserData skipped: no userId available');
       return;
     }
     setDbLoading(true);
@@ -297,35 +298,29 @@ function MainApp() {
     };
   }, [isLoggedIn, userId]);
 
-  // Shared Helper to Synchronize Auth Session State
-  const syncUserSessionAndRoute = async (session: any) => {
-    if (!session?.user) return;
-    setIsLoggedIn(true);
-    setUserId(session.user.id);
-    setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
-  };
-
-  // Supabase Session Listener
+  // ──────────────────────────────────────────────
+  // SINGLE SOURCE OF TRUTH: Supabase Auth Listener
+  // All auth state changes flow through this effect.
+  // No other code should directly set isLoggedIn / userId.
+  // ──────────────────────────────────────────────
   useEffect(() => {
-    const checkSession = async () => {
+    // React to all auth state changes (including INITIAL_SESSION on load)
+    const subscription = authService.onAuthStateChange(async (event, session) => {
       try {
-        const session = await authService.getSession();
-        if (session?.user) {
-          await syncUserSessionAndRoute(session);
+        if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') && session?.user?.id) {
+          setUserId(session.user.id);
+          setIsLoggedIn(true);
+          setUserProfile(prev => ({ ...prev, email: session.user.email || '' }));
+        } else if (event === 'SIGNED_OUT') {
+          setIsLoggedIn(false);
+          setUserId('');
+          setCurrentView('landing');
         }
       } catch (err) {
-        console.error("Session check failed:", err);
-      }
-    };
-    checkSession();
-
-    const subscription = authService.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        await syncUserSessionAndRoute(session);
-      } else if (event === 'SIGNED_OUT') {
-        setIsLoggedIn(false);
-        setUserId('');
-        setCurrentView('landing');
+        console.error('[Auth] Error processing auth event:', err);
+      } finally {
+        // Guarantee that auth initialization is marked complete on the first lifecycle event
+        setAuthInitializing(false);
       }
     });
 
@@ -362,28 +357,34 @@ function MainApp() {
     return () => clearInterval(timer);
   }, []);
 
-  // Handle Login success
-  const handleAuthSuccess = async (email: string) => {
-    setIsLoggedIn(true);
-    setUserProfile(prev => ({ ...prev, email }));
+  // Handle Login/Signup success callback from AuthViews.
+  // Auth state is managed by onAuthStateChange listener above;
+  // this callback is only used for any post-login UI side-effects.
+  const handleAuthSuccess = async (_email: string) => {
+    // No-op: the onAuthStateChange listener handles
+    // setIsLoggedIn, setUserId, and triggers loadAllUserData.
   };
 
   const handleProfileSetupComplete = async (newProfile: UserProfile) => {
     setUserProfile(newProfile);
-    await loadAllUserData();
+    // Pass userId explicitly to avoid stale closure
+    await loadAllUserData(userId);
     setCurrentView('dashboard');
     setTimeout(() => setShowSalaryPopup(true), 1500);
   };
 
-  // Sign out triggers
+  // Sign out — delegate fully to Supabase; the onAuthStateChange
+  // listener handles cleanup (setIsLoggedIn, setUserId, setCurrentView).
   const handleLogout = async () => {
     try {
       await authService.signOut();
     } catch (err) {
-      console.error("Failed to sign out:", err);
+      console.error('[Auth] Sign out failed:', err);
+      // Fallback: force local cleanup even if Supabase call fails
+      setIsLoggedIn(false);
+      setUserId('');
+      setCurrentView('landing');
     }
-    setIsLoggedIn(false);
-    setCurrentView('landing');
   };
 
   // State Modifers for Inflows
@@ -673,6 +674,29 @@ function MainApp() {
               <span>{loadingPct}% Complete</span>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Display a proper full-screen loading screen while authentication initializes or database fetches are in-flight
+  if (authInitializing || (isLoggedIn && dbLoading)) {
+    return (
+      <div className="fixed inset-0 z-[99999] bg-slate-950 flex flex-col items-center justify-center font-sans select-none text-slate-100">
+        <div className="text-center px-6 max-w-sm w-full space-y-6">
+          <div className="relative w-24 h-24 mx-auto mb-2 flex items-center justify-center">
+            <div className="absolute inset-0 bg-indigo-500/10 rounded-full animate-ping pointer-events-none" />
+            <div className="relative w-16 h-16 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-[0_0_40px_rgba(99,102,241,0.5)]">
+              <span className="font-mono font-black text-2xl text-white">A</span>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-xl font-extrabold tracking-tight text-white font-sans">Aura Finance</h1>
+            <p className="text-xs text-indigo-400 font-mono uppercase tracking-widest">
+              {authInitializing ? 'Establishing Secure Session...' : 'Synchronizing Ledger Matrix...'}
+            </p>
+          </div>
+          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mt-4"></div>
         </div>
       </div>
     );

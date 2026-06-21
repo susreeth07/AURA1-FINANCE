@@ -73,6 +73,9 @@ export const profileService = {
    * Load user profile details.
    */
   async loadProfile(userId: string): Promise<UserProfile | null> {
+    if (!userId || userId.trim() === '') {
+      throw new Error('[ProfileService] Cannot load profile: userId is empty or missing. Ensure the user is authenticated.');
+    }
     return this.retryOperation(async () => {
       const { data, error } = await supabase
         .from('profiles')

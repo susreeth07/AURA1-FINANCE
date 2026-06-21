@@ -36,6 +36,7 @@ export class ExpenseRepository extends BaseRepository<any, ExpenseItem> {
    * Look up a category ID (UUID) by name for a user (or system defaults) for outflow category types.
    */
   async getCategoryIdByName(userId: string, categoryName: string): Promise<string | null> {
+    this.validateUserId(userId);
     return this.tracePerformance('getCategoryIdByName', async () => {
       const { data, error } = await supabase
         .from('categories')
@@ -68,6 +69,7 @@ export class ExpenseRepository extends BaseRepository<any, ExpenseItem> {
     page = 1,
     pageSize = 20
   ): Promise<{ data: ExpenseItem[]; count: number | null }> {
+    this.validateUserId(userId);
     return this.tracePerformance('fetchExpenses', async () => {
       let query = supabase
         .from(this.tableName)
@@ -120,6 +122,7 @@ export class ExpenseRepository extends BaseRepository<any, ExpenseItem> {
     userId: string,
     expense: Omit<ExpenseItem, 'id'> & { id?: string }
   ): Promise<ExpenseItem> {
+    this.validateUserId(userId);
     return this.tracePerformance('insertExpense', async () => {
       const categoryId = await this.getCategoryIdByName(userId, expense.category);
       const mapped = this.mapModelToDb(expense);
@@ -151,6 +154,7 @@ export class ExpenseRepository extends BaseRepository<any, ExpenseItem> {
     id: string,
     updates: Partial<ExpenseItem>
   ): Promise<ExpenseItem> {
+    this.validateUserId(userId);
     return this.tracePerformance('updateExpense', async () => {
       const mapped = this.mapModelToDb(updates);
       if (updates.category !== undefined) {

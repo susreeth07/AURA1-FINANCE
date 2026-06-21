@@ -30,6 +30,7 @@ export class BudgetRepository extends BaseRepository<any, BudgetItem> {
   }
 
   async fetchBudgets(userId: string): Promise<BudgetItem[]> {
+    this.validateUserId(userId);
     return this.tracePerformance('fetchBudgets', async () => {
       const { data, error } = await supabase
         .from(this.tableName)
@@ -45,6 +46,7 @@ export class BudgetRepository extends BaseRepository<any, BudgetItem> {
   }
 
   async getCategoryIdByName(userId: string, categoryName: string): Promise<string | null> {
+    this.validateUserId(userId);
     const { data, error } = await supabase
       .from('categories')
       .select('id')
@@ -57,6 +59,7 @@ export class BudgetRepository extends BaseRepository<any, BudgetItem> {
   }
 
   async insertBudget(userId: string, budget: Omit<BudgetItem, 'id'> & { id?: string }): Promise<BudgetItem> {
+    this.validateUserId(userId);
     const categoryId = await this.getCategoryIdByName(userId, budget.category);
     const dbPayload = {
       limit_amount: budget.limit,
@@ -81,6 +84,7 @@ export class BudgetRepository extends BaseRepository<any, BudgetItem> {
   }
 
   async updateBudgetLimit(userId: string, id: string, limit: number): Promise<BudgetItem> {
+    this.validateUserId(userId);
     const { data, error } = await supabase
       .from(this.tableName)
       .update({ limit_amount: limit })
