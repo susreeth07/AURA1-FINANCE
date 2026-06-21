@@ -21,18 +21,55 @@ import { goalService } from './services/goalService';
 import { toast, ToastMessage } from './utils/toast';
 import { useOptimisticMutation } from './hooks/useOptimisticMutation';
 import { FinancialProfileSetupView } from './components/views/FinancialProfileSetupView';
-import { DashboardView } from './components/views/DashboardView';
-import { IncomePanel, ExpensePanel, BudgetPanel } from './components/views/IncomeExpenseBudgetViews';
-import { TransactionsPanel, ReportsPanel } from './components/views/TransactionsReportsViews';
-import { GoalsPanel } from './components/views/GoalsAiViews';
-import { NotificationsPanel, ProfilePanel, SettingsPanel, AdminDashboardPanel } from './components/views/ProfileSettingsAdminViews';
 import { AutomationFacade } from './automation/AutomationFacade';
 import { ActionCenter } from './automation/ActionCenter';
 import { FloatingAuraAssistant } from './components/ai/FloatingAuraAssistant';
 import { CommandPalette } from './components/ai/CommandPalette';
-import { AuraChatInterface } from './components/ai/AuraChatInterface';
-import { ReportCenter } from './components/reports/ReportCenter';
 import { reportService } from './reports/ReportService';
+import { lazy, Suspense } from 'react';
+
+// Lazy-loaded dynamic dashboard sub-views
+const DashboardView = lazy(() => import('./components/views/DashboardView').then(m => ({ default: m.DashboardView })));
+const IncomePanel = lazy(() => import('./components/views/IncomeExpenseBudgetViews').then(m => ({ default: m.IncomePanel })));
+const ExpensePanel = lazy(() => import('./components/views/IncomeExpenseBudgetViews').then(m => ({ default: m.ExpensePanel })));
+const BudgetPanel = lazy(() => import('./components/views/IncomeExpenseBudgetViews').then(m => ({ default: m.BudgetPanel })));
+const TransactionsPanel = lazy(() => import('./components/views/TransactionsReportsViews').then(m => ({ default: m.TransactionsPanel })));
+const ReportsPanel = lazy(() => import('./components/views/TransactionsReportsViews').then(m => ({ default: m.ReportsPanel })));
+const GoalsPanel = lazy(() => import('./components/views/GoalsAiViews').then(m => ({ default: m.GoalsPanel })));
+const NotificationsPanel = lazy(() => import('./components/views/ProfileSettingsAdminViews').then(m => ({ default: m.NotificationsPanel })));
+const ProfilePanel = lazy(() => import('./components/views/ProfileSettingsAdminViews').then(m => ({ default: m.ProfilePanel })));
+const SettingsPanel = lazy(() => import('./components/views/ProfileSettingsAdminViews').then(m => ({ default: m.SettingsPanel })));
+const AdminDashboardPanel = lazy(() => import('./components/views/ProfileSettingsAdminViews').then(m => ({ default: m.AdminDashboardPanel })));
+const AuraChatInterface = lazy(() => import('./components/ai/AuraChatInterface').then(m => ({ default: m.AuraChatInterface })));
+const ReportCenter = lazy(() => import('./components/reports/ReportCenter').then(m => ({ default: m.ReportCenter })));
+
+const AutomationPlaceholder = () => (
+  <div className="p-6 rounded-2xl border border-indigo-500/10 bg-slate-900/40 space-y-6">
+    <div className="flex justify-between items-center">
+      <div>
+        <h2 className="text-xl font-extrabold text-white">Automation Engine Status</h2>
+        <p className="text-xs text-slate-400">Aura background scheduler and rules processing core</p>
+      </div>
+      <span className="px-3 py-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-mono">
+        ONLINE
+      </span>
+    </div>
+    <div className="grid sm:grid-cols-3 gap-6">
+      <div className="p-5 rounded-xl bg-slate-950 border border-white/5">
+        <span className="text-[10px] font-mono text-slate-500 block">SCHEDULER STATUS</span>
+        <p className="text-sm font-bold text-white mt-1">ACTIVE</p>
+      </div>
+      <div className="p-5 rounded-xl bg-slate-950 border border-white/5">
+        <span className="text-[10px] font-mono text-slate-500 block">WORKER THREADS</span>
+        <p className="text-sm font-bold text-white mt-1">2 Operational</p>
+      </div>
+      <div className="p-5 rounded-xl bg-slate-950 border border-white/5">
+        <span className="text-[10px] font-mono text-slate-500 block">ACTIVE RULE REGISTRIES</span>
+        <p className="text-sm font-bold text-white mt-1">5 Loaded</p>
+      </div>
+    </div>
+  </div>
+);
 
 import { INITIAL_USER_PROFILE } from './mockData';
 import { UserProfile, IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillReminder, SystemNotification } from './types';
@@ -856,63 +893,63 @@ function MainApp() {
                   
                   {/* Dashboard link */}
                   <button 
-                    onClick={() => setCurrentView('dashboard')}
+                    onClick={() => handleNavigate('dashboard')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'dashboard' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><Wallet className="w-4.5 h-4.5" /> LEDGER DASHBOARD</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('income')}
+                    onClick={() => handleNavigate('income')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'income' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><TrendingUp className="w-4.5 h-4.5" /> REVENUE FLOWS</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('expense')}
+                    onClick={() => handleNavigate('expense')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'expense' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><TrendingDown className="w-4.5 h-4.5" /> OUTWARD DEBITS</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('budget')}
+                    onClick={() => handleNavigate('budget')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'budget' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><Sliders className="w-4.5 h-4.5" /> BUDGET BOUNDS</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('transactions')}
+                    onClick={() => handleNavigate('transactions')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'transactions' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5" /> MASTER LEDGER</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('reports')}
+                    onClick={() => handleNavigate('reports')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'reports' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><PieChart className="w-4.5 h-4.5" /> CHARTING REPORTS</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('reports-center')}
+                    onClick={() => handleNavigate('reports-center')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'reports-center' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5 text-indigo-400" /> REPORT CENTER</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('goals')}
+                    onClick={() => handleNavigate('goals')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'goals' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><Target className="w-4.5 h-4.5" /> COMPOUND GOALS</span>
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('ai')}
+                    onClick={() => handleNavigate('ai')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'ai' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><Cpu className="w-4.5 h-4.5 animate-pulse" /> AURA AI AGENT</span>
@@ -920,7 +957,7 @@ function MainApp() {
 
                   {/* Notifications */}
                   <button 
-                    onClick={() => setCurrentView('notifications')}
+                    onClick={() => handleNavigate('notifications')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'notifications' ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><Bell className="w-4.5 h-4.5" /> ALERTS SIGNAL</span>
@@ -930,7 +967,7 @@ function MainApp() {
                   </button>
 
                   <button 
-                    onClick={() => setCurrentView('admin')}
+                    onClick={() => handleNavigate('admin')}
                     className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'admin' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
                   >
                     <span className="flex items-center gap-2.5"><ShieldCheck className="w-4.5 h-4.5" /> ADMIN VIEW</span>
@@ -941,7 +978,7 @@ function MainApp() {
               {/* Sidebar Identity bottom */}
               <div className="p-4 border-t border-white/5">
                 <button 
-                  onClick={() => setCurrentView('profile')}
+                  onClick={() => handleNavigate('profile')}
                   className="w-full p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/5 transition-all text-left flex items-center gap-3"
                 >
                   <img src={userProfile.avatar} alt={userProfile.name} className="w-9 h-9 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
@@ -953,7 +990,7 @@ function MainApp() {
 
                 <div className="flex gap-2 mt-3">
                   <button 
-                    onClick={() => setCurrentView('settings')}
+                    onClick={() => handleNavigate('settings')}
                     className="p-2 flex-grow rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
                   >
                     <Settings className="w-4.5 h-4.5 mx-auto" />
@@ -1008,114 +1045,127 @@ function MainApp() {
 
             {/* SECURED CHASSIS PANEL VIEWS */}
             <div className="p-8 max-w-7xl w-full mx-auto flex-1">
-              {currentView === 'dashboard' && (
-                <DashboardView 
-                  profile={userProfile}
-                  userId={userId}
-                  incomes={incomes} 
-                  expenses={expenses} 
-                  budgets={budgets} 
-                  goals={goals} 
-                  reminders={reminders}
-                  notifications={notifications}
-                  onNavigate={setCurrentView}
-                  onShowSalaryUpdate={() => setShowSalaryPopup(true)}
-                  onMarkNotificationRead={handleMarkNotificationRead}
-                  onClearNotification={handleClearNotification}
-                />
-              )}
+              <Suspense fallback={
+                <div className="w-full h-96 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              }>
+                <Routes>
+                  <Route path="/dashboard" element={
+                    <DashboardView 
+                      profile={userProfile}
+                      userId={userId}
+                      incomes={incomes} 
+                      expenses={expenses} 
+                      budgets={budgets} 
+                      goals={goals} 
+                      reminders={reminders}
+                      notifications={notifications}
+                      onNavigate={handleNavigate}
+                      onShowSalaryUpdate={() => setShowSalaryPopup(true)}
+                      onMarkNotificationRead={handleMarkNotificationRead}
+                      onClearNotification={handleClearNotification}
+                    />
+                  } />
 
-              {currentView === 'income' && (
-                <IncomePanel 
-                  incomes={incomes} expenses={expenses} budgets={budgets}
-                  onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
-                  onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
-                  isIncomeSaving={isIncomeSaving}
-                />
-              )}
+                  <Route path="/income" element={
+                    <IncomePanel 
+                      incomes={incomes} expenses={expenses} budgets={budgets}
+                      onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
+                      onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
+                      onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
+                      isIncomeSaving={isIncomeSaving}
+                    />
+                  } />
 
-              {currentView === 'expense' && (
-                <ExpensePanel 
-                  incomes={incomes} expenses={expenses} budgets={budgets}
-                  onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
-                  onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
-                  isExpenseSaving={isExpenseSaving}
-                />
-              )}
+                  <Route path="/expenses" element={
+                    <ExpensePanel 
+                      incomes={incomes} expenses={expenses} budgets={budgets}
+                      onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
+                      onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
+                      onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
+                      isExpenseSaving={isExpenseSaving}
+                    />
+                  } />
 
-              {currentView === 'budget' && (
-                <BudgetPanel 
-                  incomes={incomes} expenses={expenses} budgets={budgets}
-                  onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
-                  onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                  onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
-                />
-              )}
+                  <Route path="/budgets" element={
+                    <BudgetPanel 
+                      incomes={incomes} expenses={expenses} budgets={budgets}
+                      onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
+                      onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
+                      onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
+                    />
+                  } />
 
-              {currentView === 'transactions' && (
-                <TransactionsPanel 
-                  incomes={incomes} expenses={expenses} budgets={budgets}
-                />
-              )}
-              {currentView === 'reports' && (
-                <ReportsPanel 
-                  incomes={incomes} expenses={expenses} budgets={budgets} userId={userId}
-                />
-              )}
+                  <Route path="/transactions" element={
+                    <TransactionsPanel 
+                      incomes={incomes} expenses={expenses} budgets={budgets}
+                    />
+                  } />
 
-              {currentView === 'reports-center' && (
-                <ReportCenter userId={userId} />
-              )}
+                  <Route path="/reports" element={
+                    <ReportsPanel 
+                      incomes={incomes} expenses={expenses} budgets={budgets} userId={userId}
+                    />
+                  } />
 
-              {currentView === 'goals' && (
-                <GoalsPanel 
-                  goals={goals} 
-                  onAddGoalFunds={handleAddGoalFunds}
-                  onAddSavingsGoal={handleAddSavingsGoal}
-                  onDeleteSavingsGoal={handleDeleteSavingsGoal}
-                />
-              )}
+                  <Route path="/reports-center" element={
+                    <ReportCenter userId={userId} />
+                  } />
 
-              {currentView === 'ai' && (
-                <AuraChatInterface
-                  userId={userId}
-                  onAddIncome={handleAddIncome}
-                  onAddExpense={handleAddExpense}
-                  onNavigate={setCurrentView as any}
-                />
-              )}
+                  <Route path="/goals" element={
+                    <GoalsPanel 
+                      goals={goals} 
+                      onAddGoalFunds={handleAddGoalFunds}
+                      onAddSavingsGoal={handleAddSavingsGoal}
+                      onDeleteSavingsGoal={handleDeleteSavingsGoal}
+                    />
+                  } />
 
-              {currentView === 'notifications' && (
-                <NotificationsPanel 
-                  notifications={notifications}
-                  profile={userProfile}
-                  userId={userId}
-                  onClearNotification={handleClearNotification}
-                  onMarkNotificationRead={handleMarkNotificationRead}
-                  onUpdateProfile={setUserProfile}
-                />
-              )}
+                  <Route path="/ai" element={
+                    <AuraChatInterface
+                      userId={userId}
+                      onAddIncome={handleAddIncome}
+                      onAddExpense={handleAddExpense}
+                      onNavigate={handleNavigate as any}
+                    />
+                  } />
 
-              {currentView === 'profile' && (
-                <ProfilePanel 
-                  notifications={notifications}
-                  profile={userProfile}
-                  userId={userId}
-                  onClearNotification={handleClearNotification}
-                  onMarkNotificationRead={handleMarkNotificationRead}
-                  onUpdateProfile={setUserProfile}
-                />
-              )}
+                  <Route path="/automation" element={
+                    <AutomationPlaceholder />
+                  } />
 
-              {currentView === 'settings' && (
-                <SettingsPanel />
-              )}
+                  <Route path="/notifications" element={
+                    <NotificationsPanel 
+                      notifications={notifications}
+                      profile={userProfile}
+                      userId={userId}
+                      onClearNotification={handleClearNotification}
+                      onMarkNotificationRead={handleMarkNotificationRead}
+                      onUpdateProfile={setUserProfile}
+                    />
+                  } />
 
-              {currentView === 'admin' && (
-                <AdminDashboardPanel />
-              )}
+                  <Route path="/profile" element={
+                    <ProfilePanel 
+                      notifications={notifications}
+                      profile={userProfile}
+                      userId={userId}
+                      onClearNotification={handleClearNotification}
+                      onMarkNotificationRead={handleMarkNotificationRead}
+                      onUpdateProfile={setUserProfile}
+                    />
+                  } />
+
+                  <Route path="/settings" element={
+                    <SettingsPanel />
+                  } />
+
+                  <Route path="/admin" element={
+                    <AdminDashboardPanel />
+                  } />
+                </Routes>
+              </Suspense>
             </div>
 
             {/* Dashboard Footer */}
@@ -1132,7 +1182,7 @@ function MainApp() {
       {isDashboardView && (
         <FloatingAuraAssistant
           userId={userId}
-          onOpenFullChat={() => setCurrentView('ai')}
+          onOpenFullChat={() => handleNavigate('ai')}
         />
       )}
 
@@ -1141,12 +1191,12 @@ function MainApp() {
         <CommandPalette
           isOpen={commandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
-          onNavigate={(view) => { setCurrentView(view as any); setCommandPaletteOpen(false); }}
-          onAddIncome={() => setCurrentView('income')}
-          onAddExpense={() => setCurrentView('expense')}
-          onCreateBudget={() => setCurrentView('budget')}
-          onCreateGoal={() => setCurrentView('goals')}
-          onOpenAI={() => setCurrentView('ai')}
+          onNavigate={(view) => { handleNavigate(view as any); setCommandPaletteOpen(false); }}
+          onAddIncome={() => handleNavigate('income')}
+          onAddExpense={() => handleNavigate('expense')}
+          onCreateBudget={() => handleNavigate('budget')}
+          onCreateGoal={() => handleNavigate('goals')}
+          onOpenAI={() => handleNavigate('ai')}
         />
       )}
 
