@@ -42,6 +42,7 @@ const SettingsPanel = lazy(() => import('./components/views/ProfileSettingsAdmin
 const AdminDashboardPanel = lazy(() => import('./components/views/ProfileSettingsAdminViews').then(m => ({ default: m.AdminDashboardPanel })));
 const AuraChatInterface = lazy(() => import('./components/ai/AuraChatInterface').then(m => ({ default: m.AuraChatInterface })));
 const ReportCenter = lazy(() => import('./components/reports/ReportCenter').then(m => ({ default: m.ReportCenter })));
+const NotFound = lazy(() => import('./components/views/NotFound').then(m => ({ default: m.NotFound })));
 
 const AutomationPlaceholder = () => (
   <div className="p-6 rounded-2xl border border-indigo-500/10 bg-slate-900/40 space-y-6">
@@ -84,17 +85,9 @@ function MainApp() {
   const [loadingPct, setLoadingPct] = useState(0);
   const [loadingText, setLoadingText] = useState('Initializing Core Ledgers');
 
-  // 2. Navigation State
-  const [currentView, setCurrentView] = useState<'landing' | 'login' | 'signup' | 'forgot' | 'setup' | 'dashboard' | 'income' | 'expense' | 'budget' | 'transactions' | 'reports' | 'goals' | 'ai' | 'notifications' | 'profile' | 'settings' | 'admin' | 'reports-center'>('landing');
-
-  // Routing Compatibility Layer: Synchronizes route path changes back to legacy currentView state.
-  useEffect(() => {
-    const routeToViewMap: Record<string, string> = {
-      '/': 'landing',
-      '/login': 'login',
-      '/signup': 'signup',
-      '/forgot': 'forgot',
-      '/setup': 'setup',
+  // Helper to resolve page header title from route path
+  const getHeaderTitle = () => {
+    const pathTitleMap: Record<string, string> = {
       '/dashboard': 'dashboard',
       '/income': 'income',
       '/expenses': 'expense',
@@ -108,12 +101,10 @@ function MainApp() {
       '/profile': 'profile',
       '/settings': 'settings',
       '/admin': 'admin',
+      '/automation': 'automation',
     };
-    const targetView = routeToViewMap[location.pathname];
-    if (targetView && targetView !== currentView) {
-      setCurrentView(targetView as any);
-    }
-  }, [location.pathname, currentView]);
+    return pathTitleMap[location.pathname] || 'Aura';
+  };
 
   // Compatibility navigate wrapper that maps view names to Router paths
   const handleNavigate = (view: string) => {
@@ -239,7 +230,6 @@ function MainApp() {
 
       // If user profile is not completed, route to setup and skip other database loads
       if (!profileCompleted) {
-        setCurrentView('setup');
         navigate('/setup');
         setDbLoading(false);
         return;
@@ -329,7 +319,6 @@ function MainApp() {
       }
 
       // Load completed successfully, set view to dashboard
-      setCurrentView('dashboard');
       navigate('/dashboard');
 
     } catch (err: any) {
@@ -412,7 +401,6 @@ function MainApp() {
         } else if (event === 'SIGNED_OUT') {
           setIsLoggedIn(false);
           setUserId('');
-          setCurrentView('landing');
           navigate('/');
         }
       } catch (err) {
@@ -468,13 +456,12 @@ function MainApp() {
     setUserProfile(newProfile);
     // Pass userId explicitly to avoid stale closure
     await loadAllUserData(userId);
-    setCurrentView('dashboard');
     navigate('/dashboard');
     setTimeout(() => setShowSalaryPopup(true), 1500);
   };
 
   // Sign out — delegate fully to Supabase; the onAuthStateChange
-  // listener handles cleanup (setIsLoggedIn, setUserId, setCurrentView).
+  // listener handles cleanup.
   const handleLogout = async () => {
     try {
       await authService.signOut();
@@ -483,7 +470,6 @@ function MainApp() {
       // Fallback: force local cleanup even if Supabase call fails
       setIsLoggedIn(false);
       setUserId('');
-      setCurrentView('landing');
       navigate('/');
     }
   };
@@ -804,7 +790,7 @@ function MainApp() {
   }
 
   // Dashboard state routing layouts
-  const isDashboardView = isLoggedIn && ['dashboard', 'income', 'expense', 'budget', 'transactions', 'reports', 'goals', 'ai', 'notifications', 'profile', 'settings', 'admin', 'reports-center'].includes(currentView);
+  const isDashboardView = isLoggedIn && userProfile.hasSetupProfile;
 
   return (
     <div className="min-h-screen text-slate-100 dark:text-slate-100 bg-slate-950 dark:bg-slate-950 light:text-slate-950 light:bg-slate-50 relative">
@@ -812,16 +798,21 @@ function MainApp() {
       {/* Interactive Laser Glow Cursor */}
       <CustomCursor />
 
-      {/* PUBLIC GUEST AREA */}
-      {!isLoggedIn && (
-        <Routes>
-          <Route path="/" element={
+      <Routes>
+        {/* Guest Routes */}
+        <Route path="/" element={
+          !isLoggedIn ? (
             <LandingPage 
               onGetStarted={() => handleNavigate('signup')} 
               onLogin={() => handleNavigate('login')} 
             />
-          } />
-          <Route path="/login" element={
+          ) : (
+            <Navigate to={userProfile.hasSetupProfile ? "/dashboard" : "/setup"} replace />
+          )
+        } />
+        
+        <Route path="/login" element={
+          !isLoggedIn ? (
             <div className="min-h-screen flex items-center justify-center relative bg-slate-950">
               <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12)_0%,transparent_60%)] pointer-events-none" />
               <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white">&lt; BACK TO NET PUBLIC</button>
@@ -829,8 +820,13 @@ function MainApp() {
                 <LoginView onSuccess={handleAuthSuccess} onNavigate={handleNavigate} />
               </div>
             </div>
-          } />
-          <Route path="/signup" element={
+          ) : (
+            <Navigate to={userProfile.hasSetupProfile ? "/dashboard" : "/setup"} replace />
+          )
+        } />
+
+        <Route path="/signup" element={
+          !isLoggedIn ? (
             <div className="min-h-screen flex items-center justify-center relative bg-slate-950">
               <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12)_0%,transparent_60%)] pointer-events-none" />
               <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white">&lt; BACK TO NET PUBLIC</button>
@@ -838,8 +834,13 @@ function MainApp() {
                 <SignupView onSuccess={handleAuthSuccess} onNavigate={handleNavigate} />
               </div>
             </div>
-          } />
-          <Route path="/forgot" element={
+          ) : (
+            <Navigate to={userProfile.hasSetupProfile ? "/dashboard" : "/setup"} replace />
+          )
+        } />
+
+        <Route path="/forgot" element={
+          !isLoggedIn ? (
             <div className="min-h-screen flex items-center justify-center relative bg-slate-950">
               <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12)_0%,transparent_60%)] pointer-events-none" />
               <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white">&lt; BACK TO NET PUBLIC</button>
@@ -847,336 +848,355 @@ function MainApp() {
                 <ForgotPasswordView onSuccess={handleAuthSuccess} onNavigate={handleNavigate} />
               </div>
             </div>
-          } />
-          {/* Catch-all for guest: redirect to landing */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      )}
+          ) : (
+            <Navigate to={userProfile.hasSetupProfile ? "/dashboard" : "/setup"} replace />
+          )
+        } />
 
-      {/* MULTI-STEP PROFILE SETUP ONBOARDING VIEW */}
-      {isLoggedIn && location.pathname === '/setup' && (
-        <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
-          <FinancialProfileSetupView 
-            userProfile={userProfile}
-            userId={userId}
-            onComplete={handleProfileSetupComplete} 
-          />
-        </div>
-      )}
+        {/* Onboarding Route */}
+        <Route path="/setup" element={
+          isLoggedIn ? (
+            !userProfile.hasSetupProfile ? (
+              <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
+                <FinancialProfileSetupView 
+                  userProfile={userProfile}
+                  userId={userId}
+                  onComplete={handleProfileSetupComplete} 
+                />
+              </div>
+            ) : (
+              <Navigate to="/dashboard" replace />
+            )
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } />
 
-      {/* SECURED DASHBOARD NET CONTROLLER */}
-      {isDashboardView && (
-        <div className="min-h-screen flex">
-          
-          {/* GLOWING SIDEBAR WRAPPER */}
-          {isSidebarOpen && (
-            <aside className="w-64 border-r border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950 dark:bg-slate-950 light:bg-white flex flex-col justify-between h-screen sticky top-0 flex-shrink-0 z-20">
-              <div>
-                {/* Brand Header */}
-                <div className="p-6 border-b border-white/5 dark:border-white/5 light:border-black/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-                      <span className="font-mono font-bold text-sm text-white">A</span>
+        {/* Secure Dashboard and catch-all routes */}
+        <Route path="/*" element={
+          isLoggedIn ? (
+            userProfile.hasSetupProfile ? (
+              <div className="min-h-screen flex">
+                
+                {/* GLOWING SIDEBAR WRAPPER */}
+                {isSidebarOpen && (
+                  <aside className="w-64 border-r border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950 dark:bg-slate-950 light:bg-white flex flex-col justify-between h-screen sticky top-0 flex-shrink-0 z-20">
+                    <div>
+                      {/* Brand Header */}
+                      <div className="p-6 border-b border-white/5 dark:border-white/5 light:border-black/5 flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+                            <span className="font-mono font-bold text-sm text-white">A</span>
+                          </div>
+                          <span className="font-extrabold text-sm text-white dark:text-white light:text-slate-900 tracking-tight">Aura Secure</span>
+                        </div>
+                        <button 
+                          onClick={() => setIsSidebarOpen(false)}
+                          className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
+                        >
+                          <PanelLeftClose className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Primary Nav Links */}
+                      <nav className="p-4 space-y-1 text-xs font-mono">
+                        
+                        {/* Dashboard link */}
+                        <button 
+                          onClick={() => handleNavigate('dashboard')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/dashboard' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><Wallet className="w-4.5 h-4.5" /> LEDGER DASHBOARD</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('income')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/income' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><TrendingUp className="w-4.5 h-4.5" /> REVENUE FLOWS</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('expense')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/expenses' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><TrendingDown className="w-4.5 h-4.5" /> OUTWARD DEBITS</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('budget')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/budgets' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><Sliders className="w-4.5 h-4.5" /> BUDGET BOUNDS</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('transactions')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/transactions' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5" /> MASTER LEDGER</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('reports')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/reports' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><PieChart className="w-4.5 h-4.5" /> CHARTING REPORTS</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('reports-center')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/reports-center' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5 text-indigo-400" /> REPORT CENTER</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('goals')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/goals' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><Target className="w-4.5 h-4.5" /> COMPOUND GOALS</span>
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('ai')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/ai' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><Cpu className="w-4.5 h-4.5 animate-pulse" /> AURA AI AGENT</span>
+                        </button>
+
+                        {/* Notifications */}
+                        <button 
+                          onClick={() => handleNavigate('notifications')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/notifications' ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><Bell className="w-4.5 h-4.5" /> ALERTS SIGNAL</span>
+                          {unreadCount > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-pink-500 text-3xs font-black text-white">{unreadCount}</span>
+                          )}
+                        </button>
+
+                        <button 
+                          onClick={() => handleNavigate('admin')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${location.pathname === '/admin' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
+                        >
+                          <span className="flex items-center gap-2.5"><ShieldCheck className="w-4.5 h-4.5" /> ADMIN VIEW</span>
+                        </button>
+                      </nav>
                     </div>
-                    <span className="font-extrabold text-sm text-white dark:text-white light:text-slate-900 tracking-tight">Aura Secure</span>
-                  </div>
-                  <button 
-                    onClick={() => setIsSidebarOpen(false)}
-                    className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-white"
-                  >
-                    <PanelLeftClose className="w-4 h-4" />
-                  </button>
-                </div>
 
-                {/* Primary Nav Links */}
-                <nav className="p-4 space-y-1 text-xs font-mono">
-                  
-                  {/* Dashboard link */}
-                  <button 
-                    onClick={() => handleNavigate('dashboard')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'dashboard' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><Wallet className="w-4.5 h-4.5" /> LEDGER DASHBOARD</span>
-                  </button>
+                    {/* Sidebar Identity bottom */}
+                    <div className="p-4 border-t border-white/5">
+                      <button 
+                        onClick={() => handleNavigate('profile')}
+                        className="w-full p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/5 transition-all text-left flex items-center gap-3"
+                      >
+                        <img src={userProfile.avatar} alt={userProfile.name} className="w-9 h-9 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
+                        <div className="truncate flex-1">
+                          <p className="text-xs font-bold text-white truncate leading-none">{userProfile.name}</p>
+                          <span className="text-[9px] font-mono text-slate-500 truncate block mt-1">PRINCIPAL CONFIG</span>
+                        </div>
+                      </button>
 
-                  <button 
-                    onClick={() => handleNavigate('income')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'income' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><TrendingUp className="w-4.5 h-4.5" /> REVENUE FLOWS</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('expense')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'expense' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><TrendingDown className="w-4.5 h-4.5" /> OUTWARD DEBITS</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('budget')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'budget' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><Sliders className="w-4.5 h-4.5" /> BUDGET BOUNDS</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('transactions')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'transactions' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5" /> MASTER LEDGER</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('reports')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'reports' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><PieChart className="w-4.5 h-4.5" /> CHARTING REPORTS</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('reports-center')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'reports-center' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><ScrollText className="w-4.5 h-4.5 text-indigo-400" /> REPORT CENTER</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('goals')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'goals' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><Target className="w-4.5 h-4.5" /> COMPOUND GOALS</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('ai')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'ai' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><Cpu className="w-4.5 h-4.5 animate-pulse" /> AURA AI AGENT</span>
-                  </button>
-
-                  {/* Notifications */}
-                  <button 
-                    onClick={() => handleNavigate('notifications')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'notifications' ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><Bell className="w-4.5 h-4.5" /> ALERTS SIGNAL</span>
-                    {unreadCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-full bg-pink-500 text-3xs font-black text-white">{unreadCount}</span>
-                    )}
-                  </button>
-
-                  <button 
-                    onClick={() => handleNavigate('admin')}
-                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all ${currentView === 'admin' ? 'bg-indigo-600 text-white font-bold' : 'text-slate-400 hover:bg-white/5 hover:text-white'}`}
-                  >
-                    <span className="flex items-center gap-2.5"><ShieldCheck className="w-4.5 h-4.5" /> ADMIN VIEW</span>
-                  </button>
-                </nav>
-              </div>
-
-              {/* Sidebar Identity bottom */}
-              <div className="p-4 border-t border-white/5">
-                <button 
-                  onClick={() => handleNavigate('profile')}
-                  className="w-full p-2 rounded-xl bg-white/[0.02] border border-white/5 hover:bg-white/5 transition-all text-left flex items-center gap-3"
-                >
-                  <img src={userProfile.avatar} alt={userProfile.name} className="w-9 h-9 rounded-full object-cover border border-white/10" referrerPolicy="no-referrer" />
-                  <div className="truncate flex-1">
-                    <p className="text-xs font-bold text-white truncate leading-none">{userProfile.name}</p>
-                    <span className="text-[9px] font-mono text-slate-500 truncate block mt-1">PRINCIPAL CONFIG</span>
-                  </div>
-                </button>
-
-                <div className="flex gap-2 mt-3">
-                  <button 
-                    onClick={() => handleNavigate('settings')}
-                    className="p-2 flex-grow rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
-                  >
-                    <Settings className="w-4.5 h-4.5 mx-auto" />
-                  </button>
-                  <button 
-                    onClick={handleLogout}
-                    className="p-2 flex-grow rounded-lg bg-white/5 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 transition-colors"
-                  >
-                    <LogOut className="w-4.5 h-4.5 mx-auto" />
-                  </button>
-                </div>
-              </div>
-            </aside>
-          )}
-
-          {/* MAIN SECURED CONTENT CHASSIS */}
-          <main className="flex-1 min-w-0 flex flex-col min-h-screen relative overflow-x-hidden">
-            
-            {/* Top status bar indicator */}
-            <header className="px-8 py-5 border-b border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950/40 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {!isSidebarOpen && (
-                  <button 
-                    onClick={() => setIsSidebarOpen(true)}
-                    className="p-2 rounded-lg bg-white/5 text-slate-400 hover:text-white"
-                  >
-                    <PanelLeft className="w-4.5 h-4.5" />
-                  </button>
+                      <div className="flex gap-2 mt-3">
+                        <button 
+                          onClick={() => handleNavigate('settings')}
+                          className="p-2 flex-grow rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+                        >
+                          <Settings className="w-4.5 h-4.5 mx-auto" />
+                        </button>
+                        <button 
+                          onClick={handleLogout}
+                          className="p-2 flex-grow rounded-lg bg-white/5 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 transition-colors"
+                        >
+                          <LogOut className="w-4.5 h-4.5 mx-auto" />
+                        </button>
+                      </div>
+                    </div>
+                  </aside>
                 )}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold font-mono text-indigo-400 uppercase tracking-widest">{currentView}</span>
-                  <span className="text-slate-600">/</span>
-                  <span className="text-2xs font-mono text-slate-500 uppercase tracking-wider">AURA PROTOCOL ACTIVE</span>
-                </div>
+
+                {/* MAIN SECURED CONTENT CHASSIS */}
+                <main className="flex-1 min-w-0 flex flex-col min-h-screen relative overflow-x-hidden">
+                  
+                  {/* Top status bar indicator */}
+                  <header className="px-8 py-5 border-b border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950/40 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      {!isSidebarOpen && (
+                        <button 
+                          onClick={() => setIsSidebarOpen(true)}
+                          className="p-2 rounded-lg bg-white/5 text-slate-400 hover:text-white"
+                        >
+                          <PanelLeft className="w-4.5 h-4.5" />
+                        </button>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold font-mono text-indigo-400 uppercase tracking-widest">{getHeaderTitle()}</span>
+                        <span className="text-slate-600">/</span>
+                        <span className="text-2xs font-mono text-slate-500 uppercase tracking-wider">AURA PROTOCOL ACTIVE</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs">
+                      {/* Quick theme toggles */}
+                      <button 
+                        onClick={toggleTheme}
+                        title={`Theme: ${theme} (click to cycle)`}
+                        className="p-2 rounded-lg bg-white/5 text-indigo-400 hover:text-white transition-colors border border-white/10"
+                      >
+                        {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : theme === 'light' ? <Sun className="w-4 h-4 text-amber-400" /> : <Sliders className="w-4 h-4 text-emerald-400" />}
+                      </button>
+                      <div className="hidden md:flex items-center gap-2 font-mono text-3xs text-slate-500">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>NODE_COMPILED_STABLE</span>
+                      </div>
+                    </div>
+                  </header>
+
+                  {/* SECURED CHASSIS PANEL VIEWS */}
+                  <div className="p-8 max-w-7xl w-full mx-auto flex-1">
+                    <Suspense fallback={
+                      <div className="w-full h-96 flex items-center justify-center">
+                        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    }>
+                      <Routes>
+                        <Route path="/dashboard" element={
+                          <DashboardView 
+                            profile={userProfile}
+                            userId={userId}
+                            incomes={incomes} 
+                            expenses={expenses} 
+                            budgets={budgets} 
+                            goals={goals} 
+                            reminders={reminders}
+                            notifications={notifications}
+                            onNavigate={handleNavigate}
+                            onShowSalaryUpdate={() => setShowSalaryPopup(true)}
+                            onMarkNotificationRead={handleMarkNotificationRead}
+                            onClearNotification={handleClearNotification}
+                          />
+                        } />
+
+                        <Route path="/income" element={
+                          <IncomePanel 
+                            incomes={incomes} expenses={expenses} budgets={budgets}
+                            onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
+                            onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
+                            onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
+                            isIncomeSaving={isIncomeSaving}
+                          />
+                        } />
+
+                        <Route path="/expenses" element={
+                          <ExpensePanel 
+                            incomes={incomes} expenses={expenses} budgets={budgets}
+                            onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
+                            onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
+                            onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
+                            isExpenseSaving={isExpenseSaving}
+                          />
+                        } />
+
+                        <Route path="/budgets" element={
+                          <BudgetPanel 
+                            incomes={incomes} expenses={expenses} budgets={budgets}
+                            onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
+                            onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
+                            onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
+                          />
+                        } />
+
+                        <Route path="/transactions" element={
+                          <TransactionsPanel 
+                            incomes={incomes} expenses={expenses} budgets={budgets}
+                          />
+                        } />
+
+                        <Route path="/reports" element={
+                          <ReportsPanel 
+                            incomes={incomes} expenses={expenses} budgets={budgets} userId={userId}
+                          />
+                        } />
+
+                        <Route path="/reports-center" element={
+                          <ReportCenter userId={userId} />
+                        } />
+
+                        <Route path="/goals" element={
+                          <GoalsPanel 
+                            goals={goals} 
+                            onAddGoalFunds={handleAddGoalFunds}
+                            onAddSavingsGoal={handleAddSavingsGoal}
+                            onDeleteSavingsGoal={handleDeleteSavingsGoal}
+                          />
+                        } />
+
+                        <Route path="/ai" element={
+                          <AuraChatInterface
+                            userId={userId}
+                            onAddIncome={handleAddIncome}
+                            onAddExpense={handleAddExpense}
+                            onNavigate={handleNavigate as any}
+                          />
+                        } />
+
+                        <Route path="/automation" element={
+                          <AutomationPlaceholder />
+                        } />
+
+                        <Route path="/notifications" element={
+                          <NotificationsPanel 
+                            notifications={notifications}
+                            profile={userProfile}
+                            userId={userId}
+                            onClearNotification={handleClearNotification}
+                            onMarkNotificationRead={handleMarkNotificationRead}
+                            onUpdateProfile={setUserProfile}
+                          />
+                        } />
+
+                        <Route path="/profile" element={
+                          <ProfilePanel 
+                            notifications={notifications}
+                            profile={userProfile}
+                            userId={userId}
+                            onClearNotification={handleClearNotification}
+                            onMarkNotificationRead={handleMarkNotificationRead}
+                            onUpdateProfile={setUserProfile}
+                          />
+                        } />
+
+                        <Route path="/settings" element={
+                          <SettingsPanel />
+                        } />
+
+                        <Route path="/admin" element={
+                          <AdminDashboardPanel />
+                        } />
+
+                        {/* Catch-all for authenticated routes -> NotFound view */}
+                        <Route path="*" element={<NotFound isLoggedIn={true} />} />
+                      </Routes>
+                    </Suspense>
+                  </div>
+
+                  {/* Dashboard Footer */}
+                  <footer className="mt-auto px-8 py-4 border-t border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950/20 text-3xs font-mono text-slate-600 flex justify-between">
+                    <span>ACTIVE USER PROTOCOL SECURE // ISO_27001</span>
+                    <span>All assets represented are simulated.</span>
+                  </footer>
+                </main>
+
               </div>
-
-              <div className="flex items-center gap-4 text-xs">
-                {/* Quick theme toggles */}
-                <button 
-                  onClick={toggleTheme}
-                  title={`Theme: ${theme} (click to cycle)`}
-                  className="p-2 rounded-lg bg-white/5 text-indigo-400 hover:text-white transition-colors border border-white/10"
-                >
-                  {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : theme === 'light' ? <Sun className="w-4 h-4 text-amber-400" /> : <Sliders className="w-4 h-4 text-emerald-400" />}
-                </button>
-                <div className="hidden md:flex items-center gap-2 font-mono text-3xs text-slate-500">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span>NODE_COMPILED_STABLE</span>
-                </div>
-              </div>
-            </header>
-
-            {/* SECURED CHASSIS PANEL VIEWS */}
-            <div className="p-8 max-w-7xl w-full mx-auto flex-1">
-              <Suspense fallback={
-                <div className="w-full h-96 flex items-center justify-center">
-                  <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                </div>
-              }>
-                <Routes>
-                  <Route path="/dashboard" element={
-                    <DashboardView 
-                      profile={userProfile}
-                      userId={userId}
-                      incomes={incomes} 
-                      expenses={expenses} 
-                      budgets={budgets} 
-                      goals={goals} 
-                      reminders={reminders}
-                      notifications={notifications}
-                      onNavigate={handleNavigate}
-                      onShowSalaryUpdate={() => setShowSalaryPopup(true)}
-                      onMarkNotificationRead={handleMarkNotificationRead}
-                      onClearNotification={handleClearNotification}
-                    />
-                  } />
-
-                  <Route path="/income" element={
-                    <IncomePanel 
-                      incomes={incomes} expenses={expenses} budgets={budgets}
-                      onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
-                      onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                      onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
-                      isIncomeSaving={isIncomeSaving}
-                    />
-                  } />
-
-                  <Route path="/expenses" element={
-                    <ExpensePanel 
-                      incomes={incomes} expenses={expenses} budgets={budgets}
-                      onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
-                      onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                      onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
-                      isExpenseSaving={isExpenseSaving}
-                    />
-                  } />
-
-                  <Route path="/budgets" element={
-                    <BudgetPanel 
-                      incomes={incomes} expenses={expenses} budgets={budgets}
-                      onAddIncome={handleAddIncome} onEditIncome={handleEditIncome} onDeleteIncome={handleDeleteIncome}
-                      onAddExpense={handleAddExpense} onEditExpense={handleEditExpense} onDeleteExpense={handleDeleteExpense}
-                      onUpdateBudget={handleUpdateBudget} onAddBudget={handleAddBudget} onDeleteBudget={handleDeleteBudget}
-                    />
-                  } />
-
-                  <Route path="/transactions" element={
-                    <TransactionsPanel 
-                      incomes={incomes} expenses={expenses} budgets={budgets}
-                    />
-                  } />
-
-                  <Route path="/reports" element={
-                    <ReportsPanel 
-                      incomes={incomes} expenses={expenses} budgets={budgets} userId={userId}
-                    />
-                  } />
-
-                  <Route path="/reports-center" element={
-                    <ReportCenter userId={userId} />
-                  } />
-
-                  <Route path="/goals" element={
-                    <GoalsPanel 
-                      goals={goals} 
-                      onAddGoalFunds={handleAddGoalFunds}
-                      onAddSavingsGoal={handleAddSavingsGoal}
-                      onDeleteSavingsGoal={handleDeleteSavingsGoal}
-                    />
-                  } />
-
-                  <Route path="/ai" element={
-                    <AuraChatInterface
-                      userId={userId}
-                      onAddIncome={handleAddIncome}
-                      onAddExpense={handleAddExpense}
-                      onNavigate={handleNavigate as any}
-                    />
-                  } />
-
-                  <Route path="/automation" element={
-                    <AutomationPlaceholder />
-                  } />
-
-                  <Route path="/notifications" element={
-                    <NotificationsPanel 
-                      notifications={notifications}
-                      profile={userProfile}
-                      userId={userId}
-                      onClearNotification={handleClearNotification}
-                      onMarkNotificationRead={handleMarkNotificationRead}
-                      onUpdateProfile={setUserProfile}
-                    />
-                  } />
-
-                  <Route path="/profile" element={
-                    <ProfilePanel 
-                      notifications={notifications}
-                      profile={userProfile}
-                      userId={userId}
-                      onClearNotification={handleClearNotification}
-                      onMarkNotificationRead={handleMarkNotificationRead}
-                      onUpdateProfile={setUserProfile}
-                    />
-                  } />
-
-                  <Route path="/settings" element={
-                    <SettingsPanel />
-                  } />
-
-                  <Route path="/admin" element={
-                    <AdminDashboardPanel />
-                  } />
-                </Routes>
-              </Suspense>
-            </div>
-
-            {/* Dashboard Footer */}
-            <footer className="mt-auto px-8 py-4 border-t border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950/20 text-3xs font-mono text-slate-600 flex justify-between">
-              <span>ACTIVE USER PROTOCOL SECURE // ISO_27001</span>
-              <span>All assets represented are simulated.</span>
-            </footer>
-          </main>
-
-        </div>
-      )}
+            ) : (
+              <Navigate to="/setup" replace />
+            )
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        } />
+      </Routes>
 
       {/* GLOBAL FLOATING AI ASSISTANT (all authenticated views) */}
       {isDashboardView && (
