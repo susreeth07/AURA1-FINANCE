@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Plus, Users, Sparkles, LogOut, PanelLeftClose, PanelLeft, 
   Wallet, Landmark, ScrollText, PieChart, ShieldAlert, Cpu, 
@@ -38,6 +39,8 @@ import { UserProfile, IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillRemi
 
 function MainApp() {
   const { theme, resolved, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // 1. Root Animation States
   const [initLoading, setInitLoading] = useState(true);
@@ -46,6 +49,62 @@ function MainApp() {
 
   // 2. Navigation State
   const [currentView, setCurrentView] = useState<'landing' | 'login' | 'signup' | 'forgot' | 'setup' | 'dashboard' | 'income' | 'expense' | 'budget' | 'transactions' | 'reports' | 'goals' | 'ai' | 'notifications' | 'profile' | 'settings' | 'admin' | 'reports-center'>('landing');
+
+  // Routing Compatibility Layer: Synchronizes route path changes back to legacy currentView state.
+  useEffect(() => {
+    const routeToViewMap: Record<string, string> = {
+      '/': 'landing',
+      '/login': 'login',
+      '/signup': 'signup',
+      '/forgot': 'forgot',
+      '/setup': 'setup',
+      '/dashboard': 'dashboard',
+      '/income': 'income',
+      '/expenses': 'expense',
+      '/budgets': 'budget',
+      '/transactions': 'transactions',
+      '/reports': 'reports',
+      '/reports-center': 'reports-center',
+      '/goals': 'goals',
+      '/ai': 'ai',
+      '/notifications': 'notifications',
+      '/profile': 'profile',
+      '/settings': 'settings',
+      '/admin': 'admin',
+    };
+    const targetView = routeToViewMap[location.pathname];
+    if (targetView && targetView !== currentView) {
+      setCurrentView(targetView as any);
+    }
+  }, [location.pathname, currentView]);
+
+  // Compatibility navigate wrapper that maps view names to Router paths
+  const handleNavigate = (view: string) => {
+    const viewToRouteMap: Record<string, string> = {
+      'landing': '/',
+      'login': '/login',
+      'signup': '/signup',
+      'forgot': '/forgot',
+      'setup': '/setup',
+      'dashboard': '/dashboard',
+      'income': '/income',
+      'expense': '/expenses',
+      'budget': '/budgets',
+      'transactions': '/transactions',
+      'reports': '/reports',
+      'reports-center': '/reports-center',
+      'goals': '/goals',
+      'ai': '/ai',
+      'notifications': '/notifications',
+      'profile': '/profile',
+      'settings': '/settings',
+      'admin': '/admin',
+    };
+    const route = viewToRouteMap[view];
+    if (route) {
+      navigate(route);
+    }
+  };
 
   // 3. Authenticated Identity States
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -144,6 +203,7 @@ function MainApp() {
       // If user profile is not completed, route to setup and skip other database loads
       if (!profileCompleted) {
         setCurrentView('setup');
+        navigate('/setup');
         setDbLoading(false);
         return;
       }
@@ -233,6 +293,7 @@ function MainApp() {
 
       // Load completed successfully, set view to dashboard
       setCurrentView('dashboard');
+      navigate('/dashboard');
 
     } catch (err: any) {
       console.error("Database integration load failure:", err);
@@ -315,6 +376,7 @@ function MainApp() {
           setIsLoggedIn(false);
           setUserId('');
           setCurrentView('landing');
+          navigate('/');
         }
       } catch (err) {
         console.error('[Auth] Error processing auth event:', err);
@@ -370,6 +432,7 @@ function MainApp() {
     // Pass userId explicitly to avoid stale closure
     await loadAllUserData(userId);
     setCurrentView('dashboard');
+    navigate('/dashboard');
     setTimeout(() => setShowSalaryPopup(true), 1500);
   };
 
@@ -384,6 +447,7 @@ function MainApp() {
       setIsLoggedIn(false);
       setUserId('');
       setCurrentView('landing');
+      navigate('/');
     }
   };
 
@@ -713,39 +777,47 @@ function MainApp() {
 
       {/* PUBLIC GUEST AREA */}
       {!isLoggedIn && (
-        <AnimatePresence mode="wait">
-          {currentView === 'landing' && (
+        <Routes>
+          <Route path="/" element={
             <LandingPage 
-              onGetStarted={() => setCurrentView('signup')} 
-              onLogin={() => setCurrentView('login')} 
+              onGetStarted={() => handleNavigate('signup')} 
+              onLogin={() => handleNavigate('login')} 
             />
-          )}
-
-          {(currentView === 'login' || currentView === 'signup' || currentView === 'forgot') && (
+          } />
+          <Route path="/login" element={
             <div className="min-h-screen flex items-center justify-center relative bg-slate-950">
-              
-              {/* Back ambient radial gradients */}
               <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12)_0%,transparent_60%)] pointer-events-none" />
-              
-              <button 
-                onClick={() => setCurrentView('landing')}
-                className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white"
-              >
-                &lt; BACK TO NET PUBLIC
-              </button>
-
+              <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white">&lt; BACK TO NET PUBLIC</button>
               <div className="relative z-10 w-full max-w-md mx-6">
-                {currentView === 'login' && <LoginView onSuccess={handleAuthSuccess} onNavigate={setCurrentView} />}
-                {currentView === 'signup' && <SignupView onSuccess={handleAuthSuccess} onNavigate={setCurrentView} />}
-                {currentView === 'forgot' && <ForgotPasswordView onSuccess={handleAuthSuccess} onNavigate={setCurrentView} />}
+                <LoginView onSuccess={handleAuthSuccess} onNavigate={handleNavigate} />
               </div>
             </div>
-          )}
-        </AnimatePresence>
+          } />
+          <Route path="/signup" element={
+            <div className="min-h-screen flex items-center justify-center relative bg-slate-950">
+              <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12)_0%,transparent_60%)] pointer-events-none" />
+              <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white">&lt; BACK TO NET PUBLIC</button>
+              <div className="relative z-10 w-full max-w-md mx-6">
+                <SignupView onSuccess={handleAuthSuccess} onNavigate={handleNavigate} />
+              </div>
+            </div>
+          } />
+          <Route path="/forgot" element={
+            <div className="min-h-screen flex items-center justify-center relative bg-slate-950">
+              <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.12)_0%,transparent_60%)] pointer-events-none" />
+              <button onClick={() => navigate('/')} className="absolute top-6 left-6 text-xs font-mono text-slate-400 hover:text-white">&lt; BACK TO NET PUBLIC</button>
+              <div className="relative z-10 w-full max-w-md mx-6">
+                <ForgotPasswordView onSuccess={handleAuthSuccess} onNavigate={handleNavigate} />
+              </div>
+            </div>
+          } />
+          {/* Catch-all for guest: redirect to landing */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       )}
 
       {/* MULTI-STEP PROFILE SETUP ONBOARDING VIEW */}
-      {isLoggedIn && currentView === 'setup' && (
+      {isLoggedIn && location.pathname === '/setup' && (
         <div className="min-h-screen flex items-center justify-center p-6 bg-slate-950">
           <FinancialProfileSetupView 
             userProfile={userProfile}
