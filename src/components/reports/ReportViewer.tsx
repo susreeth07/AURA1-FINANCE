@@ -36,6 +36,15 @@ export const ReportViewer: React.FC<ReportViewerProps> = React.memo(({ reportId,
   ]);
   const [chatThinking, setChatThinking] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const refreshIntervalRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, []);
 
   const loadReport = async () => {
     setLoading(true);
@@ -73,17 +82,26 @@ export const ReportViewer: React.FC<ReportViewerProps> = React.memo(({ reportId,
       const newReport = await reportService.refreshReport(report.id);
       // Wait for background job to finish or poll. Since refreshReport returns a queued stub immediately:
       // Let's poll for status changes in localStorage
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
       let attempts = 0;
-      const interval = setInterval(async () => {
+      refreshIntervalRef.current = setInterval(async () => {
         const polled = await reportService.getReport(newReport.id);
         attempts++;
         if (polled && polled.metadata.status !== 'queued' && polled.metadata.status !== 'running') {
-          clearInterval(interval);
+          if (refreshIntervalRef.current) {
+            clearInterval(refreshIntervalRef.current);
+            refreshIntervalRef.current = null;
+          }
           setReport(polled);
           setLoading(false);
         }
         if (attempts > 30) {
-          clearInterval(interval);
+          if (refreshIntervalRef.current) {
+            clearInterval(refreshIntervalRef.current);
+            refreshIntervalRef.current = null;
+          }
           setError("Report regeneration timed out.");
           setLoading(false);
         }

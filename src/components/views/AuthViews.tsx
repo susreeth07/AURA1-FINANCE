@@ -34,7 +34,7 @@ export const LoginView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+    <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">
       <div className="absolute top-0 left-0 w-full h-1 shine-border"></div>
 
       {/* Theme toggle */}
@@ -156,7 +156,7 @@ export const SignupView: React.FC<AuthProps> = ({ onSuccess, onNavigate }) => {
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+    <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">
       <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-pink-500 to-indigo-500"></div>
 
       {/* Theme toggle */}
@@ -288,7 +288,7 @@ export const ForgotPasswordView: React.FC<AuthProps> = ({ onSuccess, onNavigate 
   };
 
   return (
-    <div className="w-full max-w-md p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+    <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl border border-white/10 bg-slate-900/80 text-slate-100 shadow-2xl relative overflow-hidden backdrop-blur-xl">
       <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500"></div>
 
       {/* Theme toggle */}

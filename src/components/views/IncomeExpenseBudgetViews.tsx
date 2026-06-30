@@ -78,7 +78,7 @@ export const IncomePanel: React.FC<ViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-slate-900/40 p-6 rounded-2xl border border-white/5">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900/40 p-6 rounded-2xl border border-white/5">
         <div>
           <h2 className="text-xl font-extrabold text-white">Inflow Management</h2>
           <p className="text-xs text-slate-400">Add, refine and audit recurring and contract revenue channels</p>
@@ -86,7 +86,7 @@ export const IncomePanel: React.FC<ViewProps> = ({
         <button 
           onClick={() => { setShowAdd(!showAdd); setEditingId(null); }}
           disabled={isIncomeSaving}
-          className={`px-4 py-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold flex items-center gap-2 transition-all ${isIncomeSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-bold flex items-center justify-center gap-2 transition-all ${isIncomeSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Plus className="w-4 h-4" /> {showAdd ? 'Collapse Portal' : 'Add Inward Flow'}
         </button>
@@ -186,14 +186,14 @@ export const IncomePanel: React.FC<ViewProps> = ({
         
         <div className="divide-y divide-white/5">
           {incomes.map((item) => (
-            <div key={item.id} className="p-5 flex items-center justify-between hover:bg-white/[0.01] transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+            <div key={item.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.01] transition-all">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
                   <DollarSign className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">{item.source}</h4>
-                  <div className="flex items-center gap-2.5 text-xs text-slate-500 font-mono mt-1">
+                <div className="min-w-0">
+                   <h4 className="text-sm font-bold text-white truncate">{item.source}</h4>
+                   <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 font-mono mt-1">
                     <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400">{item.category}</span>
                     <span>{item.date}</span>
                     {item.isRecurring && (
@@ -202,7 +202,7 @@ export const IncomePanel: React.FC<ViewProps> = ({
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-6 border-t border-white/5 sm:border-0 pt-3 sm:pt-0">
                 <span className="text-base font-black text-emerald-400 font-mono">+₹{item.amount.toLocaleString()}</span>
                 <div className="flex items-center gap-2">
                   <button 
@@ -287,7 +287,7 @@ export const ExpensePanel: React.FC<ViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-slate-900/40 p-6 rounded-2xl border border-white/5">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900/40 p-6 rounded-2xl border border-white/5">
         <div>
           <h2 className="text-xl font-extrabold text-white">Outward Transactions</h2>
           <p className="text-xs text-slate-400">Append, edit, or configure active outgoings across categoric nodes</p>
@@ -295,7 +295,7 @@ export const ExpensePanel: React.FC<ViewProps> = ({
         <button 
           onClick={() => { setShowAdd(!showAdd); setEditingId(null); }}
           disabled={isExpenseSaving}
-          className={`px-4 py-2.5 rounded-xl bg-pink-600 text-white hover:bg-pink-700 text-xs font-bold flex items-center gap-2 transition-all ${isExpenseSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`w-full sm:w-auto px-4 py-2.5 rounded-xl bg-pink-600 text-white hover:bg-pink-700 text-xs font-bold flex items-center justify-center gap-2 transition-all ${isExpenseSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <Plus className="w-4 h-4" /> {showAdd ? 'Collapse Portal' : 'Add Debit Outflow'}
         </button>
@@ -410,14 +410,14 @@ export const ExpensePanel: React.FC<ViewProps> = ({
         
         <div className="divide-y divide-white/5">
           {expenses.map((item) => (
-            <div key={item.id} className="p-5 flex items-center justify-between hover:bg-white/[0.01] transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-400">
+            <div key={item.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.01] transition-all">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-400 shrink-0">
                   <CreditCard className="w-5 h-5" />
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white">{item.merchant}</h4>
-                  <div className="flex items-center gap-2.5 text-xs text-slate-500 font-mono mt-1">
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-white truncate">{item.merchant}</h4>
+                  <div className="flex flex-wrap items-center gap-2.5 text-xs text-slate-500 font-mono mt-1">
                     <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-400">{item.category}</span>
                     <span>{item.date}</span>
                     {item.isRecurring && (
@@ -428,7 +428,7 @@ export const ExpensePanel: React.FC<ViewProps> = ({
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-6 border-t border-white/5 sm:border-0 pt-3 sm:pt-0">
                 <span className="text-base font-black text-rose-400 font-mono">-₹{item.amount.toLocaleString()}</span>
                 <div className="flex items-center gap-2">
                   <button 
@@ -498,7 +498,7 @@ export const BudgetPanel: React.FC<ViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center bg-slate-900/40 p-6 rounded-2xl border border-white/5">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 bg-slate-900/40 p-6 rounded-2xl border border-white/5">
         <div>
           <h2 className="text-xl font-extrabold text-white">Dynamic Budget Matrix</h2>
           <p className="text-xs text-slate-400">Allocate threshold bounds across categories to prevent liquidity burn</p>
@@ -506,7 +506,7 @@ export const BudgetPanel: React.FC<ViewProps> = ({
         {availableCategories.length > 0 && (
           <button 
             onClick={() => setShowAdd(!showAdd)}
-            className="px-4 py-2.5 rounded-xl bg-purple-600 text-white hover:bg-purple-700 text-xs font-bold flex items-center gap-2 transition-all"
+            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-purple-600 text-white hover:bg-purple-700 text-xs font-bold flex items-center justify-center gap-2 transition-all"
           >
             <Plus className="w-4 h-4" /> {showAdd ? 'Close' : 'Establish New Cap'}
           </button>

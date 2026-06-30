@@ -109,6 +109,65 @@ const CustomTooltip = React.memo<{ active?: boolean; payload?: any[]; label?: st
 CustomTooltip.displayName = 'CustomTooltip';
 
 // KPI Summary card
+interface WidgetWrapperProps {
+  id: string;
+  sortedWidgets: WidgetConfig[];
+  collapsedWidgets: Set<string>;
+  toggleCollapse: (id: string) => void;
+  children: React.ReactNode;
+  className?: string;
+}
+
+const WidgetWrapper = React.memo<WidgetWrapperProps>(({
+  id, sortedWidgets, collapsedWidgets, toggleCollapse, children, className = ''
+}) => {
+  const config = sortedWidgets.find(w => w.id === id);
+  if (!config?.isVisible) return null;
+  const isCollapsed = collapsedWidgets.has(id);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+      className={className}
+    >
+      <div className="relative group">
+        {/* Widget header controls */}
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={() => toggleCollapse(id)}
+            className="p-1 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            aria-label={isCollapsed ? 'Expand widget' : 'Collapse widget'}
+          >
+            {isCollapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <AnimatePresence>
+          {!isCollapsed && (
+            <motion.div
+              initial={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+            >
+              {children}
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {isCollapsed && (
+          <div
+            className="bg-slate-900/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer"
+            onClick={() => toggleCollapse(id)}
+          >
+            <span className="text-xs text-slate-400">{config.label}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+});
+WidgetWrapper.displayName = 'WidgetWrapper';
+
 const KPICard = React.memo<{
   label: string; value: string; subtext?: string;
   icon: React.ReactNode; color: string; trend?: 'up' | 'down' | 'neutral';
@@ -117,7 +176,7 @@ const KPICard = React.memo<{
   <motion.div
     whileHover={{ scale: 1.02, y: -2 }}
     onClick={onClick}
-    className={`bg-slate-900/50 border border-white/5 rounded-2xl p-5 cursor-pointer hover:border-white/10 transition-all ${onClick ? 'cursor-pointer' : ''}`}
+    className={`bg-slate-900/50 border border-white/5 rounded-2xl p-4 sm:p-5 cursor-pointer hover:border-white/10 transition-all ${onClick ? 'cursor-pointer' : ''}`}
   >
     <div className="flex items-start justify-between mb-3">
       <div className={`p-2.5 rounded-xl`} style={{ background: `${color}15` }}>
@@ -132,7 +191,7 @@ const KPICard = React.memo<{
         </span>
       )}
     </div>
-    <p className="text-2xl font-black text-white tracking-tight">{value}</p>
+    <p className="text-xl sm:text-2xl font-black text-white tracking-tight">{value}</p>
     <p className="text-xs font-medium text-slate-400 mt-0.5">{label}</p>
     {subtext && <p className="text-[10px] text-slate-500 font-mono mt-1">{subtext}</p>}
   </motion.div>
@@ -253,55 +312,7 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
     [widgets]
   );
 
-  // Widget wrapper with collapse/hide support
-  const WidgetWrapper = useCallback(({
-    id, children, className = ''
-  }: { id: string; children: React.ReactNode; className?: string }) => {
-    const config = sortedWidgets.find(w => w.id === id);
-    if (!config?.isVisible) return null;
-    const isCollapsed = collapsedWidgets.has(id);
 
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className={className}
-      >
-        <div className="relative group">
-          {/* Widget header controls */}
-          <div className="absolute top-3 right-3 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={() => toggleCollapse(id)}
-              className="p-1 rounded-lg bg-slate-800/80 text-slate-400 hover:text-white transition-colors"
-              aria-label={isCollapsed ? 'Expand widget' : 'Collapse widget'}
-            >
-              {isCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
-            </button>
-          </div>
-          <AnimatePresence>
-            {!isCollapsed && (
-              <motion.div
-                initial={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-              >
-                {children}
-              </motion.div>
-            )}
-          </AnimatePresence>
-          {isCollapsed && (
-            <div
-              className="bg-slate-900/40 border border-white/5 rounded-2xl p-3 flex items-center justify-between cursor-pointer"
-              onClick={() => toggleCollapse(id)}
-            >
-              <span className="text-xs text-slate-400">{config.label}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-            </div>
-          )}
-        </div>
-      </motion.div>
-    );
-  }, [sortedWidgets, collapsedWidgets, toggleCollapse]);
 
   return (
     <div className="space-y-6">
@@ -334,8 +345,8 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
       </div>
 
       {/* KPI Summary Row */}
-      <WidgetWrapper id="kpi">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <WidgetWrapper id="kpi" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
+        <div className="grid grid-cols-1 min-[380px]:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPICard
             label="Total Income" value={`₹${totalIncome.toLocaleString()}`}
             subtext="This period" icon={<TrendingUp className="w-5 h-5" />}
@@ -364,7 +375,7 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
 
       {/* Financial Health + AI Summary (side by side) */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <WidgetWrapper id="health">
+        <WidgetWrapper id="health" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <FinancialHealthScoreCard
               score={healthScore}
@@ -375,7 +386,7 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
           </Suspense>
         </WidgetWrapper>
 
-        <WidgetWrapper id="ai-summary">
+        <WidgetWrapper id="ai-summary" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <AIMonthlySummaryCard userId={userId} />
           </Suspense>
@@ -383,7 +394,7 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
       </div>
 
       {/* Income vs Expense Chart */}
-      <WidgetWrapper id="charts">
+      <WidgetWrapper id="charts" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
         <div className="bg-slate-900/40 border border-white/5 rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -418,13 +429,13 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
 
       {/* Cash Flow + Spending Insights */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <WidgetWrapper id="cashflow">
+        <WidgetWrapper id="cashflow" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <CashFlowCard incomes={incomes} expenses={expenses} />
           </Suspense>
         </WidgetWrapper>
 
-        <WidgetWrapper id="spending">
+        <WidgetWrapper id="spending" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <SpendingInsightsCard expenses={expenses} />
           </Suspense>
@@ -433,7 +444,7 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
 
       {/* Budget Health + Category Breakdown */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <WidgetWrapper id="budget">
+        <WidgetWrapper id="budget" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <BudgetHealthCard budgets={budgets} expenses={expenses} />
           </Suspense>
@@ -448,8 +459,8 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
             </div>
           </div>
           {chartsLoaded && categoryData.length > 0 ? (
-            <div className="flex items-center gap-4">
-              <div className="w-40 h-40 flex-shrink-0">
+            <div className="flex flex-col min-[480px]:flex-row items-center gap-6">
+              <div className="w-36 h-36 sm:w-40 sm:h-40 flex-shrink-0">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={categoryData} cx="50%" cy="50%" innerRadius={36} outerRadius={60}
@@ -462,12 +473,12 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex-1 space-y-1.5">
+              <div className="flex-1 w-full space-y-1.5">
                 {categoryData.map((cat, i) => (
                   <div key={i} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full" style={{ background: cat.color }} />
-                      <span className="text-slate-300 truncate max-w-[80px]">{cat.name}</span>
+                      <span className="text-slate-300 truncate max-w-[120px]">{cat.name}</span>
                     </div>
                     <span className="font-mono text-slate-400">₹{cat.value.toLocaleString()}</span>
                   </div>
@@ -482,13 +493,13 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
 
       {/* Forecast + Goals */}
       <div className="grid lg:grid-cols-2 gap-4">
-        <WidgetWrapper id="forecast">
+        <WidgetWrapper id="forecast" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <ForecastCard incomes={incomes} expenses={expenses} savings={profile.currentSavings} />
           </Suspense>
         </WidgetWrapper>
 
-        <WidgetWrapper id="goals">
+        <WidgetWrapper id="goals" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
           <Suspense fallback={<WidgetSkeleton />}>
             <GoalProgressCard goals={goals} />
           </Suspense>
@@ -496,7 +507,7 @@ export const DashboardView = React.memo<DashboardProps>((props) => {
       </div>
 
       {/* Smart Alerts */}
-      <WidgetWrapper id="alerts">
+      <WidgetWrapper id="alerts" sortedWidgets={sortedWidgets} collapsedWidgets={collapsedWidgets} toggleCollapse={toggleCollapse}>
         <Suspense fallback={<WidgetSkeleton />}>
           <SmartAlertsCard
             notifications={notifications}

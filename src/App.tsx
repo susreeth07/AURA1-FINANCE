@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, MotionConfig } from 'motion/react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { 
   Plus, Users, Sparkles, LogOut, PanelLeftClose, PanelLeft, 
@@ -84,6 +84,15 @@ function MainApp() {
   const [initLoading, setInitLoading] = useState(true);
   const [loadingPct, setLoadingPct] = useState(0);
   const [loadingText, setLoadingText] = useState('Initializing Core Ledgers');
+  const [hasPointer, setHasPointer] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(pointer: fine)');
+    setHasPointer(mediaQuery.matches);
+    const listener = (e: MediaQueryListEvent) => setHasPointer(e.matches);
+    mediaQuery.addEventListener('change', listener);
+    return () => mediaQuery.removeEventListener('change', listener);
+  }, []);
 
   // Helper to resolve page header title from route path
   const getHeaderTitle = () => {
@@ -162,10 +171,14 @@ function MainApp() {
         e.preventDefault();
         setCommandPaletteOpen(prev => !prev);
       }
+      // Escape key closes mobile sidebar
+      if (e.key === 'Escape' && isSidebarOpen && window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isLoggedIn]);
+  }, [isLoggedIn, isSidebarOpen]);
 
   // 5. Enterprise Infrastructure & Toast / Mutation States
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -796,7 +809,7 @@ function MainApp() {
     <div className="min-h-screen text-slate-100 dark:text-slate-100 bg-slate-950 dark:bg-slate-950 light:text-slate-950 light:bg-slate-50 relative">
       
       {/* Interactive Laser Glow Cursor */}
-      <CustomCursor />
+      {hasPointer && <CustomCursor />}
 
       <Routes>
         {/* Guest Routes */}
@@ -878,9 +891,17 @@ function MainApp() {
             userProfile.hasSetupProfile ? (
               <div className="min-h-screen flex">
                 
+                {/* GLOWING SIDEBAR BACKDROP ON MOBILE */}
+                {isSidebarOpen && (
+                  <div 
+                    onClick={() => setIsSidebarOpen(false)}
+                    className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm md:hidden"
+                  />
+                )}
+
                 {/* GLOWING SIDEBAR WRAPPER */}
                 {isSidebarOpen && (
-                  <aside className="w-64 border-r border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950 dark:bg-slate-950 light:bg-white flex flex-col justify-between h-screen sticky top-0 flex-shrink-0 z-20">
+                  <aside className="fixed inset-y-0 left-0 md:sticky md:top-0 z-50 md:z-20 w-64 h-screen border-r border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950 dark:bg-slate-950 light:bg-white flex flex-col justify-between flex-shrink-0">
                     <div>
                       {/* Brand Header */}
                       <div className="p-6 border-b border-white/5 dark:border-white/5 light:border-black/5 flex items-center justify-between">
@@ -1020,7 +1041,7 @@ function MainApp() {
                 <main className="flex-1 min-w-0 flex flex-col min-h-screen relative overflow-x-hidden">
                   
                   {/* Top status bar indicator */}
-                  <header className="px-8 py-5 border-b border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950/40 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
+                  <header className="px-4 sm:px-8 py-4 sm:py-5 border-b border-white/5 dark:border-white/5 light:border-black/5 bg-slate-950/40 backdrop-blur-md sticky top-0 z-10 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       {!isSidebarOpen && (
                         <button 
@@ -1054,7 +1075,7 @@ function MainApp() {
                   </header>
 
                   {/* SECURED CHASSIS PANEL VIEWS */}
-                  <div className="p-8 max-w-7xl w-full mx-auto flex-1">
+                  <div className="p-4 sm:p-8 max-w-7xl w-full mx-auto flex-1">
                     <Suspense fallback={
                       <div className="w-full h-96 flex items-center justify-center">
                         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -1326,7 +1347,9 @@ function MainApp() {
 export default function App() {
   return (
     <ThemeProvider>
-      <MainApp />
+      <MotionConfig reducedMotion="user">
+        <MainApp />
+      </MotionConfig>
     </ThemeProvider>
   );
 }

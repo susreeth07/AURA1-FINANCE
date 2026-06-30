@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, FileText, FileSpreadsheet, FileCode, Printer, Download, Eye } from 'lucide-react';
 import { ReportDocument } from '../../reports/ReportModels';
 import { CSVExporter } from '../../reports/CSVExporter';
@@ -15,6 +15,7 @@ interface ExportDialogProps {
 export const ExportDialog: React.FC<ExportDialogProps> = React.memo(({ report, isOpen, onClose }) => {
   const [selectedFormat, setSelectedFormat] = useState<'pdf' | 'excel' | 'csv' | 'markdown'>('pdf');
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string>('');
 
   const exporters = useMemo(() => ({
     pdf: new PDFExporter(),
@@ -22,6 +23,25 @@ export const ExportDialog: React.FC<ExportDialogProps> = React.memo(({ report, i
     csv: new CSVExporter(),
     markdown: new MarkdownExporter()
   }), []);
+
+  useEffect(() => {
+    if (!previewOpen || !isOpen) {
+      if (previewBlobUrl) {
+        URL.revokeObjectURL(previewBlobUrl);
+        setPreviewBlobUrl('');
+      }
+      return;
+    }
+
+    const exporter = exporters[selectedFormat];
+    const blob = exporter.export(report);
+    const url = URL.createObjectURL(blob);
+    setPreviewBlobUrl(url);
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [previewOpen, isOpen, selectedFormat, report, exporters]);
 
   if (!isOpen) return null;
 
@@ -46,13 +66,6 @@ export const ExportDialog: React.FC<ExportDialogProps> = React.memo(({ report, i
     const w = window.open(url);
     if (w) w.focus();
   };
-
-  // Compile preview details
-  const previewBlobUrl = (() => {
-    const exporter = exporters[selectedFormat];
-    const blob = exporter.export(report);
-    return URL.createObjectURL(blob);
-  })();
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">

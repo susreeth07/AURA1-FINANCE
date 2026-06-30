@@ -8,8 +8,14 @@ export const ThreeGlobe: React.FC = () => {
   useEffect(() => {
     if (!mountRef.current) return;
 
-    const width = mountRef.current.clientWidth || 500;
-    const height = mountRef.current.clientHeight || 500;
+    const container = mountRef.current;
+    const isMobile = window.innerWidth < 768;
+    const globeSegments = isMobile ? 16 : 30;
+    const innerSegments = isMobile ? 12 : 20;
+    const particleCount = isMobile ? 60 : 180;
+
+    const width = container.clientWidth || 500;
+    const height = container.clientHeight || 500;
 
     // Create scene
     const scene = new THREE.Scene();
@@ -21,10 +27,14 @@ export const ThreeGlobe: React.FC = () => {
     // Create Renderer
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+      renderer = new THREE.WebGLRenderer({ 
+        antialias: !isMobile, 
+        alpha: true, 
+        powerPreference: "high-performance" 
+      });
       renderer.setSize(width, height);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-      mountRef.current.appendChild(renderer.domElement);
+      renderer.setPixelRatio(isMobile ? 1.0 : Math.min(window.devicePixelRatio, 1.5));
+      container.appendChild(renderer.domElement);
     } catch (e) {
       console.error("WebGL not supported:", e);
       setLoadError(true);
@@ -48,7 +58,7 @@ export const ThreeGlobe: React.FC = () => {
     scene.add(whiteLight);
 
     // Create Globe (Outer Wireframe)
-    const globeGeometry = new THREE.SphereGeometry(3.5, 30, 30);
+    const globeGeometry = new THREE.SphereGeometry(3.5, globeSegments, globeSegments);
     const globeMaterial = new THREE.MeshBasicMaterial({
       color: 0x818cf8,
       wireframe: true,
@@ -59,7 +69,7 @@ export const ThreeGlobe: React.FC = () => {
     scene.add(globeMesh);
 
     // Create Inner Sphere Core
-    const innerGeometry = new THREE.SphereGeometry(3.2, 20, 20);
+    const innerGeometry = new THREE.SphereGeometry(3.2, innerSegments, innerSegments);
     const innerMaterial = new THREE.MeshPhongMaterial({
       color: 0x0f172a,
       emissive: 0x4f46e5,
@@ -121,7 +131,6 @@ export const ThreeGlobe: React.FC = () => {
     }
 
     // Interactive Floating Cloud Particles (Financial Nodes Stream)
-    const particleCount = 180;
     const particleGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const particleSpeeds: number[] = [];
@@ -161,75 +170,118 @@ export const ThreeGlobe: React.FC = () => {
     gridMat.transparent = true;
     scene.add(gridHelper);
 
-    // Mouse Interaction
+    // Mouse / Touch Easing & Idle Return
     let mouseX = 0;
     let mouseY = 0;
     let targetX = 0;
     let targetY = 0;
+    let mouseTimeout: any = null;
+
+    const resetMouseToIdle = () => {
+      mouseX = 0;
+      mouseY = 0;
+    };
 
     const handleMouseMove = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+      if (mouseTimeout) clearTimeout(mouseTimeout);
+      mouseTimeout = setTimeout(resetMouseToIdle, 2000);
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
+    const handleTouchMove = (event: TouchEvent) => {
+      if (event.touches.length > 0) {
+        const touch = event.touches[0];
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouseX = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        mouseY = -((touch.clientY - rect.top) / rect.height) * 2 + 1;
+
+        if (mouseTimeout) clearTimeout(mouseTimeout);
+        mouseTimeout = setTimeout(resetMouseToIdle, 2000);
+      }
+    };
+
+    const handleMouseLeaveWindow = () => {
+      resetMouseToIdle();
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('touchmove', handleTouchMove, { passive: true });
+    window.addEventListener('mouseleave', handleMouseLeaveWindow, { passive: true });
+
+    let isIntersecting = true;
+    let tabActive = true;
+
+    const handleVisibilityChange = () => {
+      tabActive = !document.hidden;
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange, { passive: true });
+
+    const intersectionObserver = new IntersectionObserver(([entry]) => {
+      isIntersecting = entry.isIntersecting;
+    }, { threshold: 0.05 });
+    intersectionObserver.observe(container);
 
     // Resize Handler
     const handleResize = () => {
-      if (!mountRef.current) return;
-      const w = mountRef.current.clientWidth;
-      const h = mountRef.current.clientHeight;
+      if (!container) return;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
-    resizeObserver.observe(mountRef.current);
+    resizeObserver.observe(container);
 
     // Animation Loop
     let animationFrameId: number;
     let clock = new THREE.Clock();
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const animate = () => {
-      const elapsedTime = clock.getElapsedTime();
+      if (isIntersecting && tabActive) {
+        const elapsedTime = clock.getElapsedTime();
 
-      // Smooth inertia-based lag target tracking
-      targetX += (mouseX - targetX) * 0.04;
-      targetY += (mouseY - targetY) * 0.04;
+        // Smooth inertia-based lag target tracking
+        targetX += (mouseX - targetX) * 0.04;
+        targetY += (mouseY - targetY) * 0.04;
 
-      // Floating Y-axis animation (gentle bob)
-      const floatY = Math.sin(elapsedTime * 0.5) * 0.08;
+        // Floating Y-axis animation (gentle bob)
+        const floatY = prefersReducedMotion ? 0 : Math.sin(elapsedTime * 0.5) * 0.08;
 
-      // Rotate Globe wireframe with mouse tracking + idle rotation
-      globeMesh.rotation.y = elapsedTime * 0.06 + targetX * 0.4;
-      globeMesh.rotation.x = elapsedTime * 0.02 + targetY * 0.3;
-      globeMesh.position.y = floatY;
+        // Rotate Globe wireframe with mouse tracking + idle rotation
+        globeMesh.rotation.y = prefersReducedMotion ? 0 : elapsedTime * 0.06 + targetX * 0.4;
+        globeMesh.rotation.x = prefersReducedMotion ? 0 : elapsedTime * 0.02 + targetY * 0.3;
+        globeMesh.position.y = floatY;
 
-      // Inner core with counter-rotation + mouse tracking
-      innerMesh.rotation.y = -elapsedTime * 0.03 + targetX * 0.3;
-      innerMesh.rotation.x = targetY * 0.2;
-      innerMesh.position.y = floatY;
+        // Inner core with counter-rotation + mouse tracking
+        innerMesh.rotation.y = prefersReducedMotion ? 0 : -elapsedTime * 0.03 + targetX * 0.3;
+        innerMesh.rotation.x = prefersReducedMotion ? 0 : targetY * 0.2;
+        innerMesh.position.y = floatY;
 
-      // Node group with mouse tracking + idle rotation
-      nodeGroup.rotation.y = elapsedTime * 0.05 + targetX * 0.5;
-      nodeGroup.rotation.x = elapsedTime * 0.015 + targetY * 0.5;
-      nodeGroup.position.y = floatY;
+        // Node group with mouse tracking + idle rotation
+        nodeGroup.rotation.y = prefersReducedMotion ? 0 : elapsedTime * 0.05 + targetX * 0.5;
+        nodeGroup.rotation.x = prefersReducedMotion ? 0 : elapsedTime * 0.015 + targetY * 0.5;
+        nodeGroup.position.y = floatY;
 
-      starParticles.rotation.y = elapsedTime * 0.04;
-      starParticles.rotation.z = elapsedTime * 0.01;
+        starParticles.rotation.y = prefersReducedMotion ? 0 : elapsedTime * 0.04;
+        starParticles.rotation.z = prefersReducedMotion ? 0 : elapsedTime * 0.01;
 
-      // Animate node scales (visualizing pulsing growth)
-      const pulsate = Math.sin(elapsedTime * 2.5) * 0.12 + 1.0;
-      nodeGroup.children.forEach((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.scale.set(pulsate, pulsate, pulsate);
-        }
-      });
+        // Animate node scales (visualizing pulsing growth)
+        const pulsate = prefersReducedMotion ? 1.0 : Math.sin(elapsedTime * 2.5) * 0.12 + 1.0;
+        nodeGroup.children.forEach((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.scale.set(pulsate, prefersReducedMotion ? 1.0 : pulsate, pulsate);
+          }
+        });
 
-      // Render Scene
-      renderer.render(scene, camera);
+        // Render Scene
+        renderer.render(scene, camera);
+      }
       animationFrameId = requestAnimationFrame(animate);
     };
 
@@ -238,14 +290,19 @@ export const ThreeGlobe: React.FC = () => {
     // Cleanup memory properly
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('mouseleave', handleMouseLeaveWindow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       resizeObserver.disconnect();
+      intersectionObserver.disconnect();
       cancelAnimationFrame(animationFrameId);
+      if (mouseTimeout) clearTimeout(mouseTimeout);
 
       _safeDispose(scene, renderer);
 
-      if (mountRef.current && renderer.domElement) {
+      if (container && renderer.domElement) {
         try {
-          mountRef.current.removeChild(renderer.domElement);
+          container.removeChild(renderer.domElement);
         } catch (e) {
           // already removed or safe
         }
@@ -256,16 +313,16 @@ export const ThreeGlobe: React.FC = () => {
   // Safe cleaner
   const _safeDispose = (scene: THREE.Scene, renderer: THREE.WebGLRenderer) => {
     scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
+      if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {
+        if (object.geometry) {
+          object.geometry.dispose();
+        }
 
-      if (object.geometry) {
-        object.geometry.dispose();
-      }
-
-      if (Array.isArray(object.material)) {
-        object.material.forEach((material) => material.dispose());
-      } else if (object.material) {
-        object.material.dispose();
+        if (Array.isArray(object.material)) {
+          object.material.forEach((material) => material.dispose());
+        } else if (object.material) {
+          object.material.dispose();
+        }
       }
     });
 

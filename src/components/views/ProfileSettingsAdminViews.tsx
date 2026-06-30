@@ -46,10 +46,10 @@ export const NotificationsPanel: React.FC<ViewProps> = ({
             notifications.map(item => (
               <div 
                 key={item.id} 
-                className={`p-5 flex items-start justify-between hover:bg-white/[0.01] transition-all ${!item.isRead ? 'bg-indigo-500/[0.02]' : ''}`}
+                className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4 hover:bg-white/[0.01] transition-all ${!item.isRead ? 'bg-indigo-500/[0.02]' : ''}`}
               >
                 <div className="flex items-start gap-4">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center mt-0.5 ${!item.isRead ? 'bg-indigo-600/20 text-indigo-400' : 'bg-white/5 text-slate-500'}`}>
+                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center mt-0.5 shrink-0 ${!item.isRead ? 'bg-indigo-600/20 text-indigo-400' : 'bg-white/5 text-slate-500'}`}>
                     <Bell className="w-4.5 h-4.5" />
                   </div>
                   <div>
@@ -64,7 +64,7 @@ export const NotificationsPanel: React.FC<ViewProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-end gap-2 border-t border-white/5 sm:border-0 pt-3 sm:pt-0 w-full sm:w-auto">
                   {!item.isRead && (
                     <button 
                       onClick={() => onMarkNotificationRead(item.id)}
@@ -222,12 +222,12 @@ export const SettingsPanel: React.FC = () => {
         <div className="space-y-4 divide-y divide-white/5">
           
           {/* Theme switcher connecting directly to persistent context */}
-          <div className="flex items-center justify-between py-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
             <div>
               <h5 className="text-xs font-bold text-white">Theme Mode</h5>
               <p className="text-[10px] text-slate-400">Switch between Light, Dark, and System-detected modes</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
               {(['dark', 'light', 'system'] as const).map((mode) => (
                 <button
                   key={mode}
@@ -312,7 +312,7 @@ export const AdminDashboardPanel: React.FC = () => {
     <div className="space-y-6">
       
       {/* Metrics Row – DEMO DATA */}
-      <div className="grid sm:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="p-5 rounded-2xl bg-slate-900/40 border border-white/5">
           <span className="text-3xs font-mono text-slate-500 block">TOTAL PLATFORM USERS</span>
           <p className="text-2xl font-black text-white mt-1">11,480</p>
@@ -340,13 +340,13 @@ export const AdminDashboardPanel: React.FC = () => {
 
       {/* Admin simulated log output area */}
       <div className="p-6 rounded-2xl border border-white/5 bg-slate-950/80">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-4">
           <span className="text-xs font-mono font-bold text-red-400 uppercase tracking-widest flex items-center gap-2">
             <Cpu className="w-4 h-4 text-red-400" /> REALTIME TELEMETRY SYSTEM EVENT FEED
           </span>
           <button 
             onClick={() => setActivityLogs(prev => [...prev, `SYS_PING: Query executed successfully at ${new Date().toLocaleTimeString()}`])}
-            className="p-1.5 rounded bg-white/5 hover:bg-white/10 text-white flex items-center gap-1.5 text-[9px] font-mono border border-white/10"
+            className="w-full sm:w-auto p-1.5 rounded bg-white/5 hover:bg-white/10 text-white flex items-center justify-center gap-1.5 text-[9px] font-mono border border-white/10"
           >
             <RefreshCw className="w-3.5 h-3.5" /> TRIGGER_MANUAL_PING
           </button>

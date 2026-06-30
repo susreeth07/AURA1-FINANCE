@@ -111,7 +111,12 @@
 
 body {
   font-family: var(--font-sans);
-  cursor: none; /* enable custom cursor */
+}
+
+@media (pointer: fine) {
+  body {
+    cursor: none; /* enable custom cursor only for mouse/trackpad users */
+  }
 }
 
 /* Custom keyframes for wave background */
@@ -472,4 +477,18 @@ body {
 .light .text-rose-300 {
   color: #e11d48 !important;
 }
+
+/* --- Reduced Motion Support --- */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
 

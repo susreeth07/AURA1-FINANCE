@@ -63,7 +63,7 @@ export const GoalsPanel: React.FC<ViewProps> = ({ goals, onAddGoalFunds, onAddSa
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center border-b border-white/5 pb-4">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-white/5 pb-4">
         <div>
           <h2 className="text-xl font-black text-white flex items-center gap-2">
             <Target className="w-5 h-5 text-indigo-400" /> SAVINGS GOALS
@@ -72,7 +72,7 @@ export const GoalsPanel: React.FC<ViewProps> = ({ goals, onAddGoalFunds, onAddSa
         </div>
         <button 
           onClick={() => setShowAdd(!showAdd)}
-          className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-2 transition-all"
+          className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all"
         >
           <Plus className="w-4 h-4" /> {showAdd ? 'Cancel Form' : 'Initialize Target'}
         </button>
@@ -152,7 +152,7 @@ export const GoalsPanel: React.FC<ViewProps> = ({ goals, onAddGoalFunds, onAddSa
         )}
       </AnimatePresence>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
         {goals.map((goal) => {
           const pct = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
           const isCompleted = goal.currentAmount >= goal.targetAmount;

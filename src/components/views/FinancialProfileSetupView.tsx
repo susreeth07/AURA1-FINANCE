@@ -254,18 +254,18 @@ export const FinancialProfileSetupView: React.FC<SetupProps> = ({ userProfile, u
   }, [formData]);
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-8 rounded-3xl border border-white/10 dark:border-white/10 light:border-black/5 bg-slate-900/60 dark:bg-slate-900/60 light:bg-white text-slate-100 dark:text-slate-100 light:text-slate-900 backdrop-blur-xl shadow-2xl relative overflow-hidden">
+    <div className="w-full max-w-2xl mx-auto p-4 sm:p-8 rounded-3xl border border-white/10 dark:border-white/10 light:border-black/5 bg-slate-900/60 dark:bg-slate-900/60 light:bg-white text-slate-100 dark:text-slate-100 light:text-slate-900 backdrop-blur-xl shadow-2xl relative overflow-hidden">
       
       {/* Background spotlights */}
       <div className="absolute top-[-40px] right-[-40px] w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
       {/* Steps indicator bar */}
-      <div className="flex items-center justify-between mb-6 pb-6 border-b border-white/5 dark:border-white/5 light:border-black/5">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6 pb-6 border-b border-white/5 dark:border-white/5 light:border-black/5">
         <div>
           <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest">AUGMENTATION STEPS IN PROGRESS</span>
           <h2 className="text-xl font-extrabold text-white dark:text-white light:text-slate-900 mt-1">Setup Liquid Matrix</h2>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex items-center gap-1.5">
           {[1, 2, 3, 4].map((s) => (
             <div 
               key={s} 

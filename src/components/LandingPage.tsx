@@ -50,9 +50,27 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin 
           <button
             onClick={toggleTheme}
             title={`Theme: ${theme}`}
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/5"
+            className="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/5 flex items-center gap-2 cursor-pointer font-sans"
           >
-            {theme === 'dark' ? <Moon className="w-4 h-4" /> : theme === 'light' ? <Sun className="w-4 h-4 text-amber-400" /> : <Sliders className="w-4 h-4 text-emerald-400" />}
+            {theme === 'dark' ? (
+              <>
+                <Moon className="w-4 h-4 animate-pulse" />
+                <span className="text-[10px] font-bold tracking-wider uppercase md:inline hidden">🌙 Dark Mode</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase md:hidden inline">🌙 Dark</span>
+              </>
+            ) : theme === 'light' ? (
+              <>
+                <Sun className="w-4 h-4 text-amber-400" />
+                <span className="text-[10px] font-bold tracking-wider uppercase md:inline hidden text-amber-400">☀ Light Mode</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase md:hidden inline text-amber-400">☀ Light</span>
+              </>
+            ) : (
+              <>
+                <Sliders className="w-4 h-4 text-emerald-400" />
+                <span className="text-[10px] font-bold tracking-wider uppercase md:inline hidden text-emerald-400">⚡ Auto Mode</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase md:hidden inline text-emerald-400">⚡ Auto</span>
+              </>
+            )}
           </button>
 
           <button 
@@ -71,7 +89,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin 
       </header>
 
       {/* HERO SECTION */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-12 pb-24 md:pt-16 md:pb-32 grid md:grid-cols-12 gap-12 items-center">
+      <section className="relative z-10 max-w-7xl mx-auto px-6 pt-28 sm:pt-40 pb-24 md:pb-32 grid md:grid-cols-12 gap-12 items-center min-h-[82vh]">
         <div className="md:col-span-7 flex flex-col justify-center">
           <motion.div 
             initial={{ opacity: 0, y: 30 }}
@@ -471,6 +489,69 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin 
         >
           Create Free Account <ArrowUpRight className="w-4 h-4" />
         </button>
+      </section>
+
+      {/* MEET OUR TEAM SECTION */}
+      <section className="relative z-10 max-w-7xl mx-auto px-6 py-16 mb-20 border-t border-white/5">
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <span className="text-xs font-mono text-indigo-400 uppercase tracking-widest">COLLABORATIVE ARCHITECTS</span>
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-2 mb-4 font-sans">
+            Meet Our Team
+          </h2>
+          <p className="text-slate-400 text-sm font-sans">
+            The engineering team behind the design, architecture, and intelligence of Aura Finance.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+          {/* Bharath Reddy */}
+          <div className="p-6 rounded-3xl border border-white/5 bg-slate-900/40 backdrop-blur-md hover:border-indigo-500/30 hover:shadow-[0_0_30px_rgba(99,102,241,0.15)] transition-all duration-300 hover:scale-[1.03] group flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4 group-hover:scale-110 transition-transform">
+              BR
+            </div>
+            <h4 className="text-base font-extrabold text-white font-sans">Bharath Reddy</h4>
+            <p className="text-xs font-mono text-indigo-400 mt-1 uppercase tracking-wider">Project Lead</p>
+            <a href="mailto:pbcsreddy143@gmail.com" className="text-xs text-slate-500 hover:text-indigo-300 mt-4 transition-colors font-sans truncate max-w-full">
+              pbcsreddy143@gmail.com
+            </a>
+          </div>
+
+          {/* Susreeth Kumar */}
+          <div className="p-6 rounded-3xl border border-white/5 bg-slate-900/40 backdrop-blur-md hover:border-purple-500/30 hover:shadow-[0_0_30px_rgba(168,85,247,0.15)] transition-all duration-300 hover:scale-[1.03] group flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4 group-hover:scale-110 transition-transform">
+              SK
+            </div>
+            <h4 className="text-base font-extrabold text-white font-sans">Susreeth Kumar</h4>
+            <p className="text-xs font-mono text-purple-400 mt-1 uppercase tracking-wider">Backend Developer & AI Integration</p>
+            <a href="mailto:susreeth7@gmail.com" className="text-xs text-slate-500 hover:text-purple-300 mt-4 transition-colors font-sans truncate max-w-full">
+              susreeth7@gmail.com
+            </a>
+          </div>
+
+          {/* Rohit R. S */}
+          <div className="p-6 rounded-3xl border border-white/5 bg-slate-900/40 backdrop-blur-md hover:border-pink-500/30 hover:shadow-[0_0_30px_rgba(236,72,153,0.15)] transition-all duration-300 hover:scale-[1.03] group flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-pink-500 to-amber-500 flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4 group-hover:scale-110 transition-transform">
+              RR
+            </div>
+            <h4 className="text-base font-extrabold text-white font-sans">Rohit R. S</h4>
+            <p className="text-xs font-mono text-pink-400 mt-1 uppercase tracking-wider">Frontend Developer</p>
+            <a href="mailto:rsrohit@karunya.edu.in" className="text-xs text-slate-500 hover:text-pink-300 mt-4 transition-colors font-sans truncate max-w-full">
+              rsrohit@karunya.edu.in
+            </a>
+          </div>
+
+          {/* Dharsan */}
+          <div className="p-6 rounded-3xl border border-white/5 bg-slate-900/40 backdrop-blur-md hover:border-emerald-500/30 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300 hover:scale-[1.03] group flex flex-col items-center text-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white font-bold text-xl shadow-lg mb-4 group-hover:scale-110 transition-transform">
+              DH
+            </div>
+            <h4 className="text-base font-extrabold text-white font-sans">Dharsan</h4>
+            <p className="text-xs font-mono text-emerald-400 mt-1 uppercase tracking-wider">UI/UX & Testing</p>
+            <a href="mailto:dharsan4175@gmail.com" className="text-xs text-slate-500 hover:text-emerald-300 mt-4 transition-colors font-sans truncate max-w-full">
+              dharsan4175@gmail.com
+            </a>
+          </div>
+        </div>
       </section>
 
       {/* FOOTER */}

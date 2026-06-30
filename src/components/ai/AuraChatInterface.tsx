@@ -94,6 +94,11 @@ export const AuraChatInterface = React.memo<AuraChatInterfaceProps>(({
       timestamp: new Date(), isPinned: false, messageCount: 0,
     };
     setConversations([initConv]);
+    
+    // Close sidebar by default on mobile viewports
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false);
+    }
   }, []);
 
   // Auto-scroll
@@ -280,7 +285,15 @@ export const AuraChatInterface = React.memo<AuraChatInterfaceProps>(({
   }, []);
 
   return (
-    <div className="flex h-[calc(100vh-13rem)] rounded-2xl overflow-hidden border border-white/5 bg-slate-950/40">
+    <div className="flex h-[calc(100vh-13rem)] rounded-2xl overflow-hidden border border-white/5 bg-slate-950/40 relative">
+      {/* Conversation Sidebar Backdrop on Mobile */}
+      {sidebarOpen && (
+        <div 
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-20 bg-slate-950/60 backdrop-blur-sm md:hidden"
+        />
+      )}
+
       {/* Conversation Sidebar */}
       <AnimatePresence>
         {sidebarOpen && (
@@ -289,7 +302,7 @@ export const AuraChatInterface = React.memo<AuraChatInterfaceProps>(({
             animate={{ width: 256, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex-shrink-0 overflow-hidden border-r border-white/5"
+            className="absolute md:relative inset-y-0 left-0 md:inset-auto z-30 md:z-auto bg-slate-950 md:bg-transparent flex-shrink-0 overflow-hidden border-r border-white/5 h-full"
           >
             <ConversationSidebar
               conversations={conversations}
@@ -508,7 +521,7 @@ export const AuraChatInterface = React.memo<AuraChatInterfaceProps>(({
               value={input}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Aura about your finances… (Enter to send, Shift+Enter for new line)"
+              placeholder="Ask Aura about your finances…"
               disabled={isThinking}
               rows={1}
               className="flex-1 resize-none px-4 py-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] focus:border-indigo-500/50 text-sm text-white placeholder-slate-500 outline-none transition-colors font-sans chat-scroll"

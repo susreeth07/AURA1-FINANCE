@@ -130,21 +130,21 @@ export const TransactionsPanel: React.FC<ViewProps> = ({ incomes, expenses }) =>
             </div>
           ) : (
             filteredTx.map(tx => (
-              <div key={tx.id} className="p-5 flex items-center justify-between hover:bg-white/[0.01] transition-all">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${tx.type === 'inflow' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-pink-500/10 text-pink-400'}`}>
+              <div key={tx.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-white/[0.01] transition-all">
+                <div className="flex items-start gap-4">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tx.type === 'inflow' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-pink-500/10 text-pink-400'}`}>
                     {tx.type === 'inflow' ? <ArrowUpRight className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-white">{tx.title}</h4>
-                    <p className="text-xs text-slate-500 font-mono mt-0.5">
-                      <span className="text-[10px] uppercase px-1.5 py-0.2 bg-slate-800 rounded text-slate-400 mr-2">{tx.category}</span>
-                      {tx.date}
-                    </p>
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-white truncate">{tx.title}</h4>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 font-mono mt-1">
+                      <span className="text-[10px] uppercase px-1.5 py-0.2 bg-slate-800 rounded text-slate-400">{tx.category}</span>
+                      <span>{tx.date}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-6">
+                <div className="flex items-center justify-between sm:justify-end gap-6 sm:gap-6 border-t border-white/5 sm:border-0 pt-3 sm:pt-0">
                   <span className={`text-sm font-black font-mono ${tx.type === 'inflow' ? 'text-emerald-400' : 'text-rose-400'}`}>
                     {tx.type === 'inflow' ? '+' : '-'}₹{tx.amount.toLocaleString()}
                   </span>
@@ -342,7 +342,7 @@ export const ReportsPanel: React.FC<ViewProps> = ({ incomes, expenses, budgets, 
               </ResponsiveContainer>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2 text-2xs font-mono text-slate-500 mt-4">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2 text-2xs font-mono text-slate-500 mt-4">
             {pieData.map((e, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: e.color }}></span>
