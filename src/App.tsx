@@ -11,7 +11,6 @@ import {
 import { ThemeProvider, useTheme } from './components/ThemeContext';
 import { CustomCursor } from './components/CustomCursor';
 import { LandingPage } from './components/LandingPage';
-import { LoginView, SignupView, ForgotPasswordView } from './components/views/AuthViews';
 import { authService } from './services/authService';
 import { supabase } from './lib/supabaseClient';
 import { incomeService } from './services/incomeService';
@@ -20,11 +19,8 @@ import { budgetService } from './services/budgetService';
 import { goalService } from './services/goalService';
 import { toast, ToastMessage } from './utils/toast';
 import { useOptimisticMutation } from './hooks/useOptimisticMutation';
-import { FinancialProfileSetupView } from './components/views/FinancialProfileSetupView';
 import { AutomationFacade } from './automation/AutomationFacade';
 import { ActionCenter } from './automation/ActionCenter';
-import { FloatingAuraAssistant } from './components/ai/FloatingAuraAssistant';
-import { CommandPalette } from './components/ai/CommandPalette';
 import { reportService } from './reports/ReportService';
 import { lazy, Suspense } from 'react';
 
@@ -43,6 +39,13 @@ const AdminDashboardPanel = lazy(() => import('./components/views/ProfileSetting
 const AuraChatInterface = lazy(() => import('./components/ai/AuraChatInterface').then(m => ({ default: m.AuraChatInterface })));
 const ReportCenter = lazy(() => import('./components/reports/ReportCenter').then(m => ({ default: m.ReportCenter })));
 const NotFound = lazy(() => import('./components/views/NotFound').then(m => ({ default: m.NotFound })));
+
+const LoginView = lazy(() => import('./components/views/AuthViews').then(m => ({ default: m.LoginView })));
+const SignupView = lazy(() => import('./components/views/AuthViews').then(m => ({ default: m.SignupView })));
+const ForgotPasswordView = lazy(() => import('./components/views/AuthViews').then(m => ({ default: m.ForgotPasswordView })));
+const FinancialProfileSetupView = lazy(() => import('./components/views/FinancialProfileSetupView').then(m => ({ default: m.FinancialProfileSetupView })));
+const FloatingAuraAssistant = lazy(() => import('./components/ai/FloatingAuraAssistant').then(m => ({ default: m.FloatingAuraAssistant })));
+const CommandPalette = lazy(() => import('./components/ai/CommandPalette').then(m => ({ default: m.CommandPalette })));
 
 const AutomationPlaceholder = () => (
   <div className="p-6 rounded-2xl border border-indigo-500/10 bg-slate-900/40 space-y-6">
@@ -74,8 +77,10 @@ const AutomationPlaceholder = () => (
 
 import { INITIAL_USER_PROFILE } from './mockData';
 import { UserProfile, IncomeItem, ExpenseItem, BudgetItem, SavingsGoal, BillReminder, SystemNotification } from './types';
+console.log(`[PERFORMANCE] App.tsx evaluated: ${performance.now().toFixed(1)}ms`);
 
 function MainApp() {
+  console.log(`[PERFORMANCE] MainApp rendering: ${performance.now().toFixed(1)}ms`);
   const { theme, resolved, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,6 +90,10 @@ function MainApp() {
   const [loadingPct, setLoadingPct] = useState(0);
   const [loadingText, setLoadingText] = useState('Initializing Core Ledgers');
   const [hasPointer, setHasPointer] = useState(false);
+
+  useEffect(() => {
+    console.log(`[PERFORMANCE] MainApp mounted: ${performance.now().toFixed(1)}ms`);
+  }, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(pointer: fine)');
@@ -746,7 +755,9 @@ function MainApp() {
     setNotifications(prev => [note, ...prev]);
   };
 
-  if (initLoading) {
+  const isPublicRoute = location.pathname === '/' || location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/forgot';
+
+  if (initLoading && !isPublicRoute) {
     return (
       <div className="fixed inset-0 z-[99999] bg-slate-950 flex flex-col items-center justify-center font-sans select-none text-slate-100">
         <div className="text-center px-6 max-w-sm w-full space-y-6">
@@ -780,7 +791,7 @@ function MainApp() {
   }
 
   // Display a proper full-screen loading screen while authentication initializes or database fetches are in-flight
-  if (authInitializing || (isLoggedIn && dbLoading)) {
+  if ((authInitializing && !isPublicRoute) || (isLoggedIn && dbLoading)) {
     return (
       <div className="fixed inset-0 z-[99999] bg-slate-950 flex flex-col items-center justify-center font-sans select-none text-slate-100">
         <div className="text-center px-6 max-w-sm w-full space-y-6">
@@ -811,7 +822,12 @@ function MainApp() {
       {/* Interactive Laser Glow Cursor */}
       {hasPointer && <CustomCursor />}
 
-      <Routes>
+      <Suspense fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center select-none text-slate-100">
+          <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      }>
+        <Routes>
         {/* Guest Routes */}
         <Route path="/" element={
           !isLoggedIn ? (
@@ -1218,27 +1234,32 @@ function MainApp() {
           )
         } />
       </Routes>
+      </Suspense>
 
       {/* GLOBAL FLOATING AI ASSISTANT (all authenticated views) */}
       {isDashboardView && (
-        <FloatingAuraAssistant
-          userId={userId}
-          onOpenFullChat={() => handleNavigate('ai')}
-        />
+        <Suspense fallback={null}>
+          <FloatingAuraAssistant
+            userId={userId}
+            onOpenFullChat={() => handleNavigate('ai')}
+          />
+        </Suspense>
       )}
 
       {/* GLOBAL COMMAND PALETTE */}
       {isDashboardView && (
-        <CommandPalette
-          isOpen={commandPaletteOpen}
-          onClose={() => setCommandPaletteOpen(false)}
-          onNavigate={(view) => { handleNavigate(view as any); setCommandPaletteOpen(false); }}
-          onAddIncome={() => handleNavigate('income')}
-          onAddExpense={() => handleNavigate('expense')}
-          onCreateBudget={() => handleNavigate('budget')}
-          onCreateGoal={() => handleNavigate('goals')}
-          onOpenAI={() => handleNavigate('ai')}
-        />
+        <Suspense fallback={null}>
+          <CommandPalette
+            isOpen={commandPaletteOpen}
+            onClose={() => setCommandPaletteOpen(false)}
+            onNavigate={(view) => { handleNavigate(view as any); setCommandPaletteOpen(false); }}
+            onAddIncome={() => handleNavigate('income')}
+            onAddExpense={() => handleNavigate('expense')}
+            onCreateBudget={() => handleNavigate('budget')}
+            onCreateGoal={() => handleNavigate('goals')}
+            onOpenAI={() => handleNavigate('ai')}
+          />
+        </Suspense>
       )}
 
       {/* MONTHLY SALARY UPDATE POPUP COMPONENT (As requested) */}

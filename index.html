@@ -3,7 +3,77 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <title>Aura Finance</title>
+    <script>
+      (function() {
+        window.__perf_log = [];
+        function log(name, val) {
+          const time = val !== undefined ? val : performance.now();
+          const entry = { name, time };
+          window.__perf_log.push(entry);
+          console.log(`[PERFORMANCE] ${name}: ${time.toFixed(1)}ms`);
+        }
+
+        log('HTML Parser Started');
+
+        // Track paint timings (FP, FCP)
+        const paintObserver = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (entry.name === 'first-paint') {
+              log('Time to First Paint (FP)', entry.startTime);
+            } else if (entry.name === 'first-contentful-paint') {
+              log('First Contentful Paint (FCP)', entry.startTime);
+            }
+          }
+        });
+        paintObserver.observe({ type: 'paint', buffered: true });
+
+        // Track LCP
+        const lcpObserver = new PerformanceObserver((list) => {
+          const entries = list.getEntries();
+          const lastEntry = entries[entries.length - 1];
+          log('Largest Contentful Paint (LCP)', lastEntry.startTime);
+        });
+        lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+
+        // Track TTI (using long-task estimation)
+        let lastLongTask = 0;
+        const longTaskObserver = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            lastLongTask = entry.startTime + entry.duration;
+          }
+        });
+        try {
+          longTaskObserver.observe({ type: 'longtask', buffered: true });
+        } catch (e) {}
+
+        window.addEventListener('load', () => {
+          log('Window Load Event Fired');
+          setTimeout(() => {
+            const tti = Math.max(performance.now(), lastLongTask);
+            log('Time to Interactive (TTI)', tti);
+            console.table(window.__perf_log);
+          }, 3000);
+        });
+
+        // Instrument fetch to track network requests
+        const originalFetch = window.fetch;
+        window.fetch = function(...args) {
+          const start = performance.now();
+          const url = args[0] && typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url || 'Unknown');
+          return originalFetch.apply(this, args).then(res => {
+            log(`Network Request: ${url.split('?')[0]} (duration: ${(performance.now() - start).toFixed(1)}ms)`);
+            return res;
+          }).catch(err => {
+            log(`Network Request Failed: ${url.split('?')[0]} (duration: ${(performance.now() - start).toFixed(1)}ms)`);
+            throw err;
+          });
+        };
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

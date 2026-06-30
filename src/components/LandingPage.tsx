@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
 import { 
   TrendingUp, Shield, Cpu, Target, Award, PieChart, Users, ArrowRight,
   Sparkles, Layers, DollarSign, Wallet, ArrowUpRight, Zap, Play, CheckCircle2,
   Moon, Sun, Sliders
 } from 'lucide-react';
-import { ThreeGlobe } from './ThreeGlobe';
+const ThreeGlobe = lazy(() => import('./ThreeGlobe').then(m => ({ default: m.ThreeGlobe })));
 import { useTheme } from './ThemeContext';
 
 interface LandingPageProps {
@@ -15,6 +15,17 @@ interface LandingPageProps {
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
   const { theme, toggleTheme } = useTheme();
+  const [mountGlobe, setMountGlobe] = React.useState(false);
+
+  React.useEffect(() => {
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) {
+      // Completely disable WebGL globe on mobile to prevent CPU/shader compilation overhead and bundle download blockages
+      setMountGlobe(false);
+    } else {
+      setMountGlobe(true);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen relative overflow-hidden transition-colors duration-300 bg-slate-950 text-slate-100">
@@ -165,8 +176,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin 
             <TrendingUp className="w-6 h-6 text-pink-400 animate-pulse" />
           </div>
 
-          <div className="w-full h-full pointer-events-none">
-            <ThreeGlobe />
+          <div className="w-full h-full pointer-events-none flex items-center justify-center">
+            {mountGlobe ? (
+              <Suspense fallback={<div className="w-full h-full bg-slate-950/20" />}>
+                <ThreeGlobe />
+              </Suspense>
+            ) : (
+              <div className="w-64 h-64 rounded-full border border-indigo-500/20 bg-indigo-500/5 flex items-center justify-center relative animate-pulse">
+                <div className="absolute inset-4 rounded-full border border-pink-500/10 bg-pink-500/5 animate-pulse" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-12 rounded-full border border-purple-500/10 bg-purple-500/5 animate-ping" style={{ animationDuration: '6s' }} />
+                <Sparkles className="w-8 h-8 text-indigo-400/40" />
+              </div>
+            )}
           </div>
         </div>
       </section>
