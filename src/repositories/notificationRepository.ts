@@ -13,6 +13,23 @@ export interface NotificationItem {
   priority?: string;
 }
 
+const isValidUuid = (val?: string) =>
+  !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+
+const ALLOWED_NOTIFICATION_TYPES = new Set(['budget', 'goal', 'bill', 'warning', 'ai']);
+
+export const normalizeNotificationType = (val?: string): string => {
+  if (!val) return 'budget';
+  const lower = val.toLowerCase().trim();
+  if (ALLOWED_NOTIFICATION_TYPES.has(lower)) return lower;
+  if (lower === 'salary' || lower === 'income' || lower === 'revenue') return 'budget';
+  if (lower === 'bill' || lower === 'reminder') return 'bill';
+  if (lower === 'goal' || lower === 'achievement') return 'goal';
+  if (lower === 'ai' || lower === 'agent') return 'ai';
+  if (lower.includes('warning') || lower.includes('alert') || lower.includes('emergency')) return 'warning';
+  return 'budget';
+};
+
 export class NotificationRepository extends BaseRepository<any, NotificationItem> {
   constructor() {
     super('system_notifications');
@@ -34,17 +51,18 @@ export class NotificationRepository extends BaseRepository<any, NotificationItem
 
   mapModelToDb(model: Partial<NotificationItem>): any {
     const row: any = {};
-    if (model.id !== undefined) row.id = model.id;
+    if (isValidUuid(model.id)) row.id = model.id;
     if (model.userId !== undefined) row.user_id = model.userId;
-    if (model.type !== undefined) row.type = model.type;
+    if (model.type !== undefined) row.type = normalizeNotificationType(model.type);
     if (model.title !== undefined) row.title = model.title;
     if (model.message !== undefined) row.message = model.message;
-    if (model.status !== undefined) {
-      row.status = model.status;
+    
+    // Map status / isRead to is_read column exclusively.
+    // public.system_notifications contains is_read BOOLEAN and no status column.
+    if (model.isRead !== undefined) {
+      row.is_read = Boolean(model.isRead);
+    } else if (model.status !== undefined) {
       row.is_read = model.status === 'read';
-    } else if (model.isRead !== undefined) {
-      row.is_read = model.isRead;
-      row.status = model.isRead ? 'read' : 'delivered';
     }
     return row;
   }
@@ -60,7 +78,11 @@ export class NotificationRepository extends BaseRepository<any, NotificationItem
         .order('created_at', { ascending: false });
 
       if (status) {
-        query = query.eq('status', status);
+        if (status.toLowerCase() === 'read') {
+          query = query.eq('is_read', true);
+        } else if (status.toLowerCase() === 'unread' || status.toLowerCase() === 'delivered' || status.toLowerCase() === 'created') {
+          query = query.eq('is_read', false);
+        }
       }
 
       const { data, error, count } = await query.range(from, to);
@@ -81,9 +103,9 @@ export class NotificationRepository extends BaseRepository<any, NotificationItem
     return this.tracePerformance('markAllRead', async () => {
       const { error } = await supabase
         .from(this.tableName)
-        .update({ status: 'read', is_read: true })
+        .update({ is_read: true })
         .eq('user_id', userId)
-        .neq('status', 'read');
+        .eq('is_read', false);
 
       if (error) {
         throw error;
