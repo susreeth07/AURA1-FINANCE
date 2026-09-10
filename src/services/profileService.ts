@@ -210,13 +210,12 @@ export const profileService = {
     }
 
     if (step === 3) {
-      const salary = Number(formData.monthlySalary) || 0;
+      const savingsVal = Number(formData.currentSavings);
       
-      if (Number(formData.currentSavings) < 0) {
+      if (formData.currentSavings === '' || formData.currentSavings === undefined || isNaN(savingsVal)) {
+        errors.currentSavings = 'Current savings must be a valid number.';
+      } else if (savingsVal < 0) {
         errors.currentSavings = 'Current savings cannot be negative.';
-      } else if (Number(formData.currentSavings) > salary) {
-        // As requested in section 6: "Savings: Cannot exceed salary"
-        errors.currentSavings = 'Stored savings index cannot exceed monthly salary.';
       }
     }
 

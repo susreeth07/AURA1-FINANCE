@@ -122,7 +122,11 @@ export class IncomeRepository extends BaseRepository<any, IncomeItem> {
       const mapped = this.mapModelToDb(income);
       mapped.category_id = categoryId;
       mapped.user_id = userId;
-      if (income.id) {
+      // Allow PostgreSQL to generate UUID via DEFAULT gen_random_uuid() constraint.
+      // Only attach mapped.id if the provided id is already a valid UUID.
+      const isValidUuid = (val?: string) =>
+        !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+      if (isValidUuid(income.id)) {
         mapped.id = income.id;
       }
 

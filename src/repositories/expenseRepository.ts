@@ -128,7 +128,11 @@ export class ExpenseRepository extends BaseRepository<any, ExpenseItem> {
       const mapped = this.mapModelToDb(expense);
       mapped.category_id = categoryId;
       mapped.user_id = userId;
-      if (expense.id) {
+      // Allow PostgreSQL to generate UUID via DEFAULT gen_random_uuid() constraint.
+      // Only attach mapped.id if the provided id is already a valid UUID.
+      const isValidUuid = (val?: string) =>
+        !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+      if (isValidUuid(expense.id)) {
         mapped.id = expense.id;
       }
 

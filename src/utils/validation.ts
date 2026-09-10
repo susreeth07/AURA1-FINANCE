@@ -127,15 +127,11 @@ export const validators = {
   /**
    * Enterprise business validation rules for savings parameters.
    */
-  savings(currentSavings: number, monthlySalary: number): ValidationResult {
+  savings(currentSavings: number, monthlySalary?: number): ValidationResult {
     const errors: Record<string, string> = {};
 
     const savingsErr = this.currency(currentSavings, 'Current Savings');
     if (savingsErr) errors.currentSavings = savingsErr;
-
-    if (currentSavings > monthlySalary) {
-      errors.currentSavings = 'Current savings indices cannot exceed monthly base salary limits.';
-    }
 
     return this.result(errors);
   },

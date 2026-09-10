@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { 
   Bell, Shield, Check, Trash2, Mail, User, Lock, Sparkles, Sliders, 
@@ -7,6 +7,8 @@ import {
 import { SystemNotification, UserProfile } from '../../types';
 import { useTheme } from '../ThemeContext';
 import { profileService } from '../../services/profileService';
+import { supabase } from '../../lib/supabaseClient';
+import { toast } from '../../utils/toast';
 
 interface ViewProps {
   notifications: SystemNotification[];
@@ -204,10 +206,135 @@ export const ProfilePanel: React.FC<ViewProps> = ({ profile, userId, onUpdatePro
   );
 };
 
-export const SettingsPanel: React.FC = () => {
+interface SettingsPanelProps {
+  userId?: string;
+}
+
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ userId: propUserId }) => {
   const { theme, resolved, setTheme, toggleTheme } = useTheme();
   const [securityOn, setSecurityOn] = useState(true);
   const [soundsOn, setSoundsOn] = useState(false);
+  const [activeUserId, setActiveUserId] = useState<string | null>(propUserId || null);
+
+  // Load settings on mount or when activeUserId changes
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadSettings() {
+      try {
+        let currentUid = propUserId;
+        if (!currentUid) {
+          const { data: { session } } = await supabase.auth.getSession();
+          currentUid = session?.user?.id;
+        }
+
+        if (!currentUid) return;
+        if (isMounted) {
+          setActiveUserId(currentUid);
+        }
+
+        const { data, error } = await supabase
+          .from('user_settings')
+          .select('strict_lock, sound_effects')
+          .eq('user_id', currentUid)
+          .maybeSingle();
+
+        if (error) {
+          console.error('[Settings] Error loading user settings from Supabase:', error);
+          return;
+        }
+
+        if (data && isMounted) {
+          if (typeof data.strict_lock === 'boolean') {
+            setSecurityOn(data.strict_lock);
+          }
+          if (typeof data.sound_effects === 'boolean') {
+            setSoundsOn(data.sound_effects);
+          }
+        }
+      } catch (err) {
+        console.error('[Settings] Unexpected error loading user settings:', err);
+      }
+    }
+
+    loadSettings();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propUserId]);
+
+  const handleToggleSecurity = async () => {
+    const previous = securityOn;
+    const nextValue = !previous;
+    setSecurityOn(nextValue);
+
+    let targetUid = activeUserId || propUserId;
+    if (!targetUid) {
+      const { data: { session } } = await supabase.auth.getSession();
+      targetUid = session?.user?.id || null;
+      if (targetUid) setActiveUserId(targetUid);
+    }
+
+    if (!targetUid) {
+      setSecurityOn(previous);
+      toast.error('Authentication required to save settings.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .update({ strict_lock: nextValue })
+        .eq('user_id', targetUid);
+
+      if (error) {
+        console.error('[Settings] Failed to update strict_lock:', error);
+        setSecurityOn(previous);
+        toast.error(`Failed to save Strict Lock setting: ${error.message || 'Database error'}`);
+      }
+    } catch (err: any) {
+      console.error('[Settings] Unexpected error updating strict_lock:', err);
+      setSecurityOn(previous);
+      toast.error(`Failed to save Strict Lock setting: ${err.message || 'Unexpected error'}`);
+    }
+  };
+
+  const handleToggleSounds = async () => {
+    const previous = soundsOn;
+    const nextValue = !previous;
+    setSoundsOn(nextValue);
+
+    let targetUid = activeUserId || propUserId;
+    if (!targetUid) {
+      const { data: { session } } = await supabase.auth.getSession();
+      targetUid = session?.user?.id || null;
+      if (targetUid) setActiveUserId(targetUid);
+    }
+
+    if (!targetUid) {
+      setSoundsOn(previous);
+      toast.error('Authentication required to save settings.');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .update({ sound_effects: nextValue })
+        .eq('user_id', targetUid);
+
+      if (error) {
+        console.error('[Settings] Failed to update sound_effects:', error);
+        setSoundsOn(previous);
+        toast.error(`Failed to save Sound Feedback setting: ${error.message || 'Database error'}`);
+      }
+    } catch (err: any) {
+      console.error('[Settings] Unexpected error updating sound_effects:', err);
+      setSoundsOn(previous);
+      toast.error(`Failed to save Sound Feedback setting: ${err.message || 'Unexpected error'}`);
+    }
+  };
 
   return (
     <div className="grid lg:grid-cols-12 gap-6">
@@ -254,7 +381,7 @@ export const SettingsPanel: React.FC = () => {
               <p className="text-[10px] text-slate-400">Enable local passphrase triggers and inactivity logout bounds</p>
             </div>
             <button 
-              onClick={() => setSecurityOn(!securityOn)}
+              onClick={handleToggleSecurity}
               className={`px-3 py-1.5 rounded-lg text-2xs font-mono font-bold ${securityOn ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/25' : 'bg-white/5 text-slate-400'}`}
             >
               {securityOn ? 'CYPHER_ACTIVE' : 'CYPHER_OFF'}
@@ -268,7 +395,7 @@ export const SettingsPanel: React.FC = () => {
               <p className="text-[10px] text-slate-400">Enable tactile cyber audio outputs during navigation clicks</p>
             </div>
             <button 
-              onClick={() => setSoundsOn(!soundsOn)}
+              onClick={handleToggleSounds}
               className={`px-3 py-1.5 rounded-lg text-2xs font-mono font-bold ${soundsOn ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/5 text-slate-400'}`}
             >
               {soundsOn ? 'AUDIO_PINGS_ACTIVE' : 'AUDIO_PINGS_MUTED'}

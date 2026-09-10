@@ -720,12 +720,54 @@ function MainApp() {
   };
 
   // Notification clear triggers
-  const handleClearNotification = (id: string) => {
+  const handleClearNotification = async (id: string) => {
+    const originalNotifications = [...notifications];
     setNotifications((prev) => prev.filter(n => n.id !== id));
+
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from('system_notifications')
+          .delete()
+          .eq('id', id)
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error('[Notifications] Failed to delete notification from Supabase:', error);
+          setNotifications(originalNotifications);
+          toast.error('Failed to dismiss notification. State preserved.');
+        }
+      } catch (err) {
+        console.error('[Notifications] Exception deleting notification:', err);
+        setNotifications(originalNotifications);
+        toast.error('Failed to dismiss notification. State preserved.');
+      }
+    }
   };
 
-  const handleMarkNotificationRead = (id: string) => {
+  const handleMarkNotificationRead = async (id: string) => {
+    const originalNotifications = [...notifications];
     setNotifications((prev) => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+
+    if (userId) {
+      try {
+        const { error } = await supabase
+          .from('system_notifications')
+          .update({ is_read: true })
+          .eq('id', id)
+          .eq('user_id', userId);
+
+        if (error) {
+          console.error('[Notifications] Failed to mark notification as read in Supabase:', error);
+          setNotifications(originalNotifications);
+          toast.error('Failed to update notification status.');
+        }
+      } catch (err) {
+        console.error('[Notifications] Exception updating notification:', err);
+        setNotifications(originalNotifications);
+        toast.error('Failed to update notification status.');
+      }
+    }
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -1205,7 +1247,7 @@ function MainApp() {
                         } />
 
                         <Route path="/settings" element={
-                          <SettingsPanel />
+                          <SettingsPanel userId={userId} />
                         } />
 
                         <Route path="/admin" element={
