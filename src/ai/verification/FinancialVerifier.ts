@@ -185,7 +185,8 @@ export class FinancialVerifier {
     // 2. Sift context & tool outputs
     const kpis = context?.kpis || toolOutputs?.analytics?.kpis || toolOutputs?.health || {};
     const budgetList: any[] = toolOutputs?.budget?.budgets || context?.budgets || [];
-    const goalList: any[] = toolOutputs?.goal?.savings || context?.savings || [];
+    const goalList: any[] = toolOutputs?.goal?.savings || context?.savings || context?.goals || [];
+    const debtList: any[] = toolOutputs?.debt?.debts || context?.debts || [];
     const forecastObj = toolOutputs?.forecast || context?.forecasts || {};
     const simObj = toolOutputs?.simulation || {};
 
@@ -197,6 +198,21 @@ export class FinancialVerifier {
         if (currency) activeCurrencies.add(currency);
       }
     };
+
+    if (Array.isArray(debtList)) {
+      for (const d of debtList) {
+        registerAmount(d.balance, `${d.name || 'Debt'} balance`);
+        if (d.interestRate !== undefined) {
+          const r = Number(d.interestRate);
+          if (!isNaN(r)) percentages.set(r, `${d.name || 'Debt'} rate`);
+        }
+        if (d.rate !== undefined) {
+          const r = Number(d.rate);
+          if (!isNaN(r)) percentages.set(r, `${d.name || 'Debt'} rate`);
+        }
+        if (d.minPayment !== undefined) registerAmount(d.minPayment, `${d.name || 'Debt'} min payment`);
+      }
+    }
 
     registerAmount(kpis.totalIncome, 'Total Income');
     registerAmount(kpis.totalExpense, 'Total Expense');
@@ -218,6 +234,11 @@ export class FinancialVerifier {
       if (!isNaN(h)) amounts.set(h, { context: 'Health Score' });
     }
 
+    const analyticsObj = toolOutputs?.analytics || context?.analytics || {};
+    if (analyticsObj.avgMonthlySpending !== undefined && analyticsObj.avgMonthlySpending !== null) {
+      registerAmount(analyticsObj.avgMonthlySpending, 'Average Monthly Spending');
+    }
+
     // Process Budgets
     let hasBudgets = false;
     if (Array.isArray(budgetList) && budgetList.length > 0) {
@@ -226,7 +247,13 @@ export class FinancialVerifier {
         const cat = String(b.category || b.cat || 'discretionary').toLowerCase();
         const limParsed = this.parseMoneyValue(b.limit !== undefined ? b.limit : b.lim);
         const spentParsed = this.parseMoneyValue(b.spent);
-        const pctVal = b.utilizationPercent !== undefined ? Number(b.utilizationPercent) : (b.pct !== undefined ? Number(b.pct) : 0);
+        let pctVal = b.utilizationPercent !== undefined ? Number(b.utilizationPercent) : (b.pct !== undefined ? Number(b.pct) : (b.percentage !== undefined ? Number(b.percentage) : NaN));
+        if (isNaN(pctVal) && limParsed.num !== null && spentParsed.num !== null && limParsed.num > 0) {
+          pctVal = Math.round((spentParsed.num / limParsed.num) * 100);
+        }
+        if (isNaN(pctVal)) {
+          pctVal = 0;
+        }
 
         if (limParsed.num !== null) {
           amounts.set(limParsed.num, { context: `${cat} limit`, currency: limParsed.currency });
@@ -257,9 +284,9 @@ export class FinancialVerifier {
     if (Array.isArray(goalList)) {
       for (const g of goalList) {
         const name = String(g.goalName || g.name || 'goal');
-        const tarParsed = this.parseMoneyValue(g.targetAmount || g.tar);
-        const curParsed = this.parseMoneyValue(g.currentAmount || g.cur);
-        const pVal = g.progressPercent !== undefined ? Number(g.progressPercent) : (g.pct !== undefined ? Number(g.pct) : 0);
+        const tarParsed = this.parseMoneyValue(g.targetAmount || g.target || g.tar);
+        const curParsed = this.parseMoneyValue(g.currentAmount || g.current || g.cur);
+        const pVal = g.progressPercent !== undefined ? Number(g.progressPercent) : (g.pct !== undefined ? Number(g.pct) : (tarParsed.num && curParsed.num ? Math.round((curParsed.num / tarParsed.num) * 100) : 0));
         const mVal = g.remainingMonths !== undefined ? Number(g.remainingMonths) : (g.m !== undefined ? Number(g.m) : 0);
 
         if (tarParsed.num !== null) amounts.set(tarParsed.num, { context: `${name} target`, currency: tarParsed.currency });
@@ -272,6 +299,7 @@ export class FinancialVerifier {
         }
       }
     }
+
 
     // Process Forecasts
     if (forecastObj) {
@@ -303,10 +331,32 @@ export class FinancialVerifier {
       derivedAmounts.add(Math.max(0, b.limit - b.spent));
       derivedAmounts.add(Math.max(0, b.spent - b.limit));
     }
+    // Allow pairwise cross-category budget arithmetic (e.g. comparing spending across categories)
+    const budgetArray = Array.from(budgets.values());
+    for (let i = 0; i < budgetArray.length; i++) {
+      for (let j = 0; j < budgetArray.length; j++) {
+        if (i !== j) {
+          derivedAmounts.add(Math.abs(budgetArray[i].spent - budgetArray[j].spent));
+          derivedAmounts.add(Math.abs(budgetArray[i].limit - budgetArray[j].limit));
+          derivedAmounts.add(budgetArray[i].spent + budgetArray[j].spent);
+        }
+      }
+    }
     if (totalBudgetLimit > 0) {
       derivedAmounts.add(totalBudgetLimit);
       derivedAmounts.add(totalBudgetSpent);
       derivedAmounts.add(Math.max(0, totalBudgetLimit - totalBudgetSpent));
+    }
+
+    if (kpis.currentSavings !== undefined && kpis.currentSavings !== null) {
+      const curSav = Number(kpis.currentSavings);
+      if (!isNaN(curSav)) {
+        for (const qNum of queryNumbers) {
+          if (qNum > 0 && qNum < curSav) {
+            derivedAmounts.add(curSav - qNum);
+          }
+        }
+      }
     }
 
     // Default currency if none found
@@ -358,12 +408,15 @@ export class FinancialVerifier {
 
         if (numVal !== null) {
           const canonicalCode = this.SYMBOL_MAP[symbolOrCode] || symbolOrCode || 'USD';
+          const claimIdx = cMatch.index;
+          const claimEnd = claimIdx + cMatch[0].length;
+          const localCategory = this.detectCategoryContext(sentLower, { start: claimIdx, end: claimEnd });
           claims.push({
             text: cMatch[0].trim(),
             value: numVal,
             type: 'currency',
             currencyCode: canonicalCode,
-            categoryContext,
+            categoryContext: localCategory || categoryContext,
             sentenceContext: sentence
           });
         }
@@ -445,9 +498,22 @@ export class FinancialVerifier {
         }
       }
 
-      // Check if sentence performs arithmetic comparing this category with other numbers in the same sentence
+      // If claim matches this category's figures or comparison arithmetic, accept!
       if (this.verifySentenceArithmetic(claim, store)) {
         return true;
+      }
+
+      // If the sentence mentions multiple categories and claim matches authoritative derived amounts (such as category differences), accept!
+      const sentenceHasMultipleCategories = Array.from(store.budgets.keys()).filter(c =>
+        claim.sentenceContext && new RegExp(`\\b${c}\\b`, 'i').test(claim.sentenceContext)
+      ).length > 1;
+
+      if (sentenceHasMultipleCategories) {
+        for (const derivedVal of store.derivedAmounts) {
+          if (this.isCloseMatch(claim.value, derivedVal, 0.01)) {
+            return true;
+          }
+        }
       }
 
       // If it's a category claim that does not match this category's figures or comparison arithmetic, reject!
@@ -566,7 +632,13 @@ export class FinancialVerifier {
         snippet.includes('allocating') ||
         snippet.includes('if you') ||
         snippet.includes('could save') ||
-        snippet.includes('would save')
+        snippet.includes('would save') ||
+        snippet.includes('might accumulate') ||
+        snippet.includes('could accumulate') ||
+        snippet.includes('might allocate') ||
+        snippet.includes('could allocate') ||
+        snippet.includes('educational') ||
+        snippet.includes('hypothetically')
       ) {
         return true;
       }
@@ -746,10 +818,10 @@ export class FinancialVerifier {
     return false;
   }
 
-  private static detectCategoryContext(text: string): string | undefined {
+  private static detectCategoryContext(text: string, targetOffset?: number | { start: number; end: number }): string | undefined {
     // Check regex pattern: e.g. "travel budget" or "budget for travel"
     const budgetMatch = text.match(/\b([a-z]+)\s+budget\b|\bbudget\s+(?:for|in|on)\s+([a-z]+)\b/i);
-    if (budgetMatch) {
+    if (budgetMatch && targetOffset === undefined) {
       const matched = (budgetMatch[1] || budgetMatch[2]).toLowerCase();
       const stopWords = new Set(['your', 'the', 'my', 'a', 'an', 'this', 'our', 'total', 'overall', 'monthly', 'annual']);
       if (!stopWords.has(matched)) {
@@ -761,8 +833,41 @@ export class FinancialVerifier {
       'food', 'dining', 'groceries', 'housing', 'rent', 'utilities',
       'bills', 'transport', 'transportation', 'travel', 'vacation', 'holiday',
       'entertainment', 'shopping', 'healthcare', 'health', 'fitness', 'education',
-      'personal', 'electronics', 'laptop', 'macbook', 'sofa'
+      'personal', 'electronics'
     ];
+
+    if (targetOffset !== undefined) {
+      const cStart = typeof targetOffset === 'number' ? targetOffset : targetOffset.start;
+      const cEnd = typeof targetOffset === 'number' ? targetOffset : targetOffset.end;
+      let closestCat: string | undefined = undefined;
+      let minDistance = Infinity;
+
+      for (const cat of categories) {
+        const reg = new RegExp(`\\b${cat}\\b`, 'gi');
+        let m: RegExpExecArray | null;
+        while ((m = reg.exec(text)) !== null) {
+          const matchStart = m.index;
+          const matchEnd = matchStart + m[0].length;
+          let dist = 0;
+          if (cStart > matchEnd) {
+            dist = cStart - matchEnd;
+          } else if (cEnd < matchStart) {
+            dist = matchStart - cEnd;
+          } else {
+            dist = 0;
+          }
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestCat = cat.toLowerCase();
+          }
+        }
+      }
+      if (minDistance <= 60) {
+        return closestCat;
+      }
+      return undefined;
+    }
+
     for (const cat of categories) {
       const reg = new RegExp(`\\b${cat}\\b`, 'i');
       if (reg.test(text)) return cat;

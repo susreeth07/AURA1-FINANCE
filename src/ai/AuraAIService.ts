@@ -17,6 +17,15 @@ import { TokenBudgetManager } from './TokenBudgetManager';
 import { AIInsightEngine } from './AIInsightEngine';
 import { AIRecommendationEngine } from './AIRecommendationEngine';
 import { FinancialVerifier } from './verification/FinancialVerifier';
+import { FinancialReasoningVerifier } from './verification/FinancialReasoningVerifier';
+import { FinancialConsistencyVerifier } from './verification/FinancialConsistencyVerifier';
+import { FinancialFeasibilityVerifier } from './verification/FinancialFeasibilityVerifier';
+import { FinancialDecisionVerifier } from './verification/FinancialDecisionVerifier';
+import { FinancialUncertaintyVerifier } from './verification/FinancialUncertaintyVerifier';
+import { FinancialResponseIntegrityVerifier } from './verification/FinancialResponseIntegrityVerifier';
+import { FinancialEvidenceVerifier } from './verification/FinancialEvidenceVerifier';
+import { FinancialCommunicationSafetyVerifier } from './verification/FinancialCommunicationSafetyVerifier';
+import { FinancialVerificationPipeline } from './verification/FinancialVerificationPipeline';
 
 // Provider infrastructure
 import { ProviderRateLimiter } from './providers/ProviderRateLimiter';
@@ -275,20 +284,22 @@ export class AuraAIService {
       warningsList = [...warningsList, "Runway months is below safe 3-month threshold."];
     }
 
-    // 10.5 Numerical Financial-Answer Verification (§AI-2.1)
-    const verification = FinancialVerifier.verify(
+    // 10.5 Deterministic Financial Verification Pipeline (§AI-2.1 through §AI-2.9 hardened via §AI-3.0)
+    const pipelineResult = FinancialVerificationPipeline.verify(
       sanitizedPrompt,
       answerText,
       analyticsData,
       executorResult.outputs,
-      finalConfidence
+      finalConfidence,
+      {
+        existingWarnings: warningsList,
+        existingReasoning: reasoningList
+      }
     );
 
-    if (!verification.isValid) {
-      warningsList = [...warningsList, ...verification.warnings];
-      reasoningList = [...reasoningList, ...verification.reasoning];
-    }
-    const verifiedConfidence = verification.adjustedConfidence || finalConfidence;
+    warningsList = [...pipelineResult.warnings];
+    reasoningList = [...pipelineResult.reasoning];
+    const finalVerifiedConfidence = pipelineResult.finalConfidence;
 
     const formattedAnswer = ResponseFormatter.format(answerText, options?.formattingStyle || 'Markdown');
 
@@ -296,7 +307,7 @@ export class AuraAIService {
     const responseTime = performance.now() - startTime;
     const finalResponse: AuraResponse = {
       answer: formattedAnswer,
-      confidence: verifiedConfidence,
+      confidence: finalVerifiedConfidence,
       reasoning: [...finalReasoning, ...reasoningList],
       insights: insightsList.length > 0 ? insightsList : ["Reserve metrics stashed successfully."],
       recommendations: recommendationsList.length > 0 ? recommendationsList : ["Maintain budget limits."],
