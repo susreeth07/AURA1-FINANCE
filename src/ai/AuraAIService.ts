@@ -16,6 +16,7 @@ import { AIHealth } from './AIHealth';
 import { TokenBudgetManager } from './TokenBudgetManager';
 import { AIInsightEngine } from './AIInsightEngine';
 import { AIRecommendationEngine } from './AIRecommendationEngine';
+import { FinancialVerifier } from './verification/FinancialVerifier';
 
 // Provider infrastructure
 import { ProviderRateLimiter } from './providers/ProviderRateLimiter';
@@ -274,13 +275,28 @@ export class AuraAIService {
       warningsList = [...warningsList, "Runway months is below safe 3-month threshold."];
     }
 
+    // 10.5 Numerical Financial-Answer Verification (§AI-2.1)
+    const verification = FinancialVerifier.verify(
+      sanitizedPrompt,
+      answerText,
+      analyticsData,
+      executorResult.outputs,
+      finalConfidence
+    );
+
+    if (!verification.isValid) {
+      warningsList = [...warningsList, ...verification.warnings];
+      reasoningList = [...reasoningList, ...verification.reasoning];
+    }
+    const verifiedConfidence = verification.adjustedConfidence || finalConfidence;
+
     const formattedAnswer = ResponseFormatter.format(answerText, options?.formattingStyle || 'Markdown');
 
     // 11. Compile final response
     const responseTime = performance.now() - startTime;
     const finalResponse: AuraResponse = {
       answer: formattedAnswer,
-      confidence: finalConfidence,
+      confidence: verifiedConfidence,
       reasoning: [...finalReasoning, ...reasoningList],
       insights: insightsList.length > 0 ? insightsList : ["Reserve metrics stashed successfully."],
       recommendations: recommendationsList.length > 0 ? recommendationsList : ["Maintain budget limits."],
