@@ -113,18 +113,19 @@ export class AuraAIService {
 
     // 6. Execute Plan & Run Tools
     const plan = AIPlanner.buildPlan(intent, sanitizedPrompt);
+    const executionSteps = plan.steps.includes('analytics') ? plan.steps : ['analytics', ...plan.steps];
     const executorStart = performance.now();
-    const executorResult = await ToolExecutor.execute(userId, plan.steps);
+    const executorResult = await ToolExecutor.execute(userId, executionSteps);
     const executorDuration = performance.now() - executorStart;
     
     AIHealth.recordToolExecution(executorDuration);
 
     // 7. Cache Lookup
-    const context = await ToolExecutor.execute(userId, ['analytics']);
+    const analyticsData = executorResult.outputs.analytics || { kpis: {}, risks: {} };
     const cacheKey = AICache.generateKey({
       userId,
       prompt: sanitizedPrompt,
-      contextVersion: context.outputs.analytics?.healthStatus?.status || '1.0',
+      contextVersion: analyticsData?.healthStatus?.status || '1.0',
       conversationStateHash: session.memory.getSummary() + session.memory.getMessages().length
     });
 
@@ -148,7 +149,7 @@ export class AuraAIService {
     const prompt = PromptBuilder.build(
       intent,
       sanitizedPrompt,
-      context.outputs.analytics || { kpis: {}, risks: {} },
+      analyticsData,
       executorResult.outputs,
       memorySummary,
       memoryMessagesText
@@ -259,16 +260,16 @@ export class AuraAIService {
       citationsList = parsed.citations || [];
     } catch (e) {
       answerText = llmOutput;
-      insightsList = AIInsightEngine.generate(context.outputs.analytics || { kpis: {}, risks: {} });
-      recommendationsList = AIRecommendationEngine.generate(context.outputs.analytics || { kpis: {}, risks: {} });
+      insightsList = AIInsightEngine.generate(analyticsData);
+      recommendationsList = AIRecommendationEngine.generate(analyticsData);
       citationsList = [...executorResult.toolsUsed];
     }
 
-    const finalConfidence = ConfidenceEngine.evaluate(context.outputs.analytics || { kpis: {}, risks: {} });
+    const finalConfidence = ConfidenceEngine.evaluate(analyticsData);
     const finalReasoning = ExplainabilityEngine.compileReasoning(intent, executorResult.toolsUsed, executorResult.totalDurationMs);
     const assumptions = ExplainabilityEngine.getAssumptions(intent);
 
-    const runwayNum = Number(context.outputs.analytics?.kpis?.runwayMonths) || 0;
+    const runwayNum = Number(analyticsData?.kpis?.runwayMonths) || 0;
     if (runwayNum < 3.0 && !warningsList.includes("Runway months is below safe 3-month threshold.")) {
       warningsList = [...warningsList, "Runway months is below safe 3-month threshold."];
     }

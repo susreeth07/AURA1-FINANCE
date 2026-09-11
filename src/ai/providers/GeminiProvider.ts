@@ -46,6 +46,22 @@ export class GeminiProvider implements LLMProvider, StreamingProvider, ToolCalli
 
   // ------------------------------------------------------------------ error mapping
 
+  private isNotFoundError(err: unknown): boolean {
+    if (!err) return false;
+    const e = err as any;
+    const status = e?.status || e?.statusCode || e?.response?.status || 0;
+    if (status === 404) return true;
+    const msg = (e?.message || String(err)).toLowerCase();
+    return (
+      msg.includes('404') ||
+      msg.includes('not_found') ||
+      msg.includes('not found') ||
+      msg.includes('not available') ||
+      msg.includes('model is not found') ||
+      msg.includes('unsupported model')
+    );
+  }
+
   private mapError(err: unknown): Error {
     const e = err as any;
     const status = e?.status || e?.statusCode || 0;
@@ -95,6 +111,12 @@ export class GeminiProvider implements LLMProvider, StreamingProvider, ToolCalli
         return await this.callGenerate(primaryModel, prompt, options);
       } catch (err) {
         lastError = this.mapError(err);
+        if (this.isNotFoundError(err)) {
+          if (config.loggingVerbosity !== 'silent') {
+            console.warn(`[GeminiProvider] Primary model ${primaryModel} returned 404 / Not Found. Fast-failing to fallback model without retries.`);
+          }
+          break;
+        }
         if (attempt < config.maxRetries) {
           // Exponential back-off between retries (skip in tests)
           if (config.loggingVerbosity !== 'silent') {
