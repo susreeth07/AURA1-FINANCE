@@ -13,6 +13,43 @@ export type IntentType =
   | 'Greeting'
   | 'Unknown';
 
+export const EXPENSE_KEYWORDS = [
+  'expenditure',
+  'expenditures',
+  'expense',
+  'expenses',
+  'spend',
+  'spending',
+  'spent',
+  'purchase',
+  'purchases',
+  'merchant',
+  'buy',
+  'bought'
+] as const;
+
+export const SAVINGS_KEYWORDS = [
+  'savings rate',
+  'saving rate',
+  'savings ratio',
+  'emergency reserve',
+  'emergency fund',
+  'savings',
+  'saving',
+  'saved'
+] as const;
+
+function findFirstKeywordIndex(text: string, keywords: readonly string[]): number {
+  let minIndex = -1;
+  for (const kw of keywords) {
+    const idx = text.indexOf(kw);
+    if (idx !== -1 && (minIndex === -1 || idx < minIndex)) {
+      minIndex = idx;
+    }
+  }
+  return minIndex;
+}
+
 export class IntentClassifier {
   static classify(prompt: string): IntentType {
     const text = prompt.toLowerCase().trim();
@@ -33,7 +70,18 @@ export class IntentClassifier {
       return 'Budget';
     }
 
-    if (text.includes('expense') || text.includes('spend') || text.includes('purchase') || text.includes('merchant') || text.includes('buy')) {
+    // Check Expense and Savings keywords
+    const hasExpense = EXPENSE_KEYWORDS.some(kw => text.includes(kw));
+    const hasSavings = SAVINGS_KEYWORDS.some(kw => text.includes(kw));
+
+    // Handle combined query: resolve based on which concept appears first in the prompt
+    if (hasExpense && hasSavings) {
+      const expIdx = findFirstKeywordIndex(text, EXPENSE_KEYWORDS);
+      const savIdx = findFirstKeywordIndex(text, SAVINGS_KEYWORDS);
+      return expIdx <= savIdx ? 'Expense' : 'Savings';
+    }
+
+    if (hasExpense) {
       return 'Expense';
     }
 
@@ -53,7 +101,7 @@ export class IntentClassifier {
       return 'Investment';
     }
 
-    if (text.includes('savings rate') || text.includes('saving rate') || text.includes('savings ratio') || text.includes('emergency reserve') || text.includes('emergency fund')) {
+    if (hasSavings) {
       return 'Savings';
     }
 

@@ -1,4 +1,4 @@
-import { IntentType } from './IntentClassifier';
+import { IntentType, EXPENSE_KEYWORDS, SAVINGS_KEYWORDS } from './IntentClassifier';
 
 export interface ExecutionPlan {
   readonly steps: readonly string[];
@@ -11,6 +11,11 @@ export class AIPlanner {
 
     // Check for buy/afford keyword simulation triggers
     const isSimulationQuery = text.includes('afford') || text.includes('buy') || text.includes('simulation') || text.includes('purchase');
+
+    // Detect combined expense and savings queries
+    const hasExpense = EXPENSE_KEYWORDS.some(k => text.includes(k));
+    const hasSavings = SAVINGS_KEYWORDS.some(k => text.includes(k));
+    const isCombinedExpenseSavings = hasExpense && hasSavings;
 
     switch (intent) {
       case 'Greeting':
@@ -45,7 +50,7 @@ export class AIPlanner {
         break;
 
       case 'Savings':
-        steps.push('health', 'trend');
+        steps.push('health', 'trend', 'goal');
         break;
 
       case 'Cash Flow':
@@ -64,6 +69,11 @@ export class AIPlanner {
       default:
         steps.push('analytics', 'health');
         break;
+    }
+
+    // For combined expenditure & savings queries, ensure tools for BOTH domains are included
+    if (isCombinedExpenseSavings) {
+      steps.push('analytics', 'health', 'trend', 'budget', 'goal');
     }
 
     if (isSimulationQuery) {
